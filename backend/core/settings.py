@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,6 +23,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-=4ws4kwa^esm9!!$x^el$chim3p4dk79m0$xwv&ghpuekf7s(b'
+
+JWT_SECRET = config("JWT_SECRET", default=SECRET_KEY)
+JWT_ALG = config("JWT_ALG", default="HS256")
+JWT_EXPIRES_H = int(config("JWT_EXPIRES_H", default=24))
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -37,6 +43,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'cv_app',
 ]
 
 MIDDLEWARE = [

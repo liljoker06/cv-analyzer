@@ -11,6 +11,10 @@ import os
 
 from django.core.asgi import get_asgi_application
 
+from .database import init_db
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'core.settings')
+
+init_db()
 
 application = get_asgi_application()
