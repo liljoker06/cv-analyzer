@@ -1,7 +1,7 @@
 
 import Link from 'next/link';
-import PourquoiSection from '../components/PourquoiSection';
-import FeatureSection from '../components/FeatureSection';
+import PourquoiSection from './components/Section/PourquoiSection';
+import FeatureSection from './components/Section/FeatureSection';
 import { FaCloudUploadAlt, FaLightbulb, FaChartBar, FaFileAlt, FaEnvelope, FaBolt } from 'react-icons/fa';
 
 export default function HomePage() {
