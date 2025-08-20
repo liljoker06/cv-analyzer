@@ -142,39 +142,7 @@ export default function DashboardPage() {
   ];
 
   // Table columns for users
-  const userColumns = [
-    { key: 'name', label: 'Nom' },
-    { key: 'email', label: 'Email' },
-    { 
-      key: 'role', 
-      label: 'Rôle',
-      render: (value: string) => {
-        const variant = value === 'admin' ? 'danger' : value === 'recruiter' ? 'info' : 'success';
-        const label = value === 'admin' ? 'Administrateur' : value === 'recruiter' ? 'Recruteur' : 'Candidat';
-        return <Badge variant={variant}>{label}</Badge>;
-      }
-    },
-    { 
-      key: 'status', 
-      label: 'Statut',
-      render: (value: string) => (
-        <Badge variant={value === 'actif' ? 'success' : 'default'}>
-          {value === 'actif' ? 'Actif' : 'Inactif'}
-        </Badge>
-      )
-    },
-    { key: 'lastLogin', label: 'Dernière connexion' },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: () => (
-        <div className="flex space-x-2">
-          <Button size="sm" variant="outline">Modifier</Button>
-          <Button size="sm" variant="danger">Supprimer</Button>
-        </div>
-      )
-    }
-  ];
+  // Removed unused userColumns variable to fix the error
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
