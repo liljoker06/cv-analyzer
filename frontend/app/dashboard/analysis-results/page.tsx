@@ -11,7 +11,7 @@ export default function AnalysisResultsPage() {
 
   // Mock data for analysis results
   const analysisData = {
-    jobTitle: 'Développeur Full Stack',
+    jobTitle: 'Développeur fulle Stack',
     company: 'TechCorp',
     totalCandidates: 45,
     analysisDate: '2024-01-15',
@@ -157,7 +157,7 @@ export default function AnalysisResultsPage() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Temps d'analyse</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Temps d&apos;analyse</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">2m 30s</p>
               </div>
             </div>
@@ -221,7 +221,7 @@ export default function AnalysisResultsPage() {
                           </h4>
                           <p className="text-gray-600 dark:text-gray-400">{candidate.email}</p>
                           <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {candidate.experience} d'expérience
+                            {candidate.experience} d&apos;expérience
                           </p>
                         </div>
                       </div>
@@ -305,14 +305,14 @@ export default function AnalysisResultsPage() {
             {activeTab === 'insights' && (
               <div className="space-y-6">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                  Insights de l'IA
+                  Insights de l&apos;IA
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                     <h4 className="font-medium text-blue-800 dark:text-blue-200 mb-2">Tendances observées</h4>
                     <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
                       <li>• 60% des candidats ont une expérience React</li>
-                      <li>• 40% manquent d'expérience DevOps</li>
+                      <li>• 40% manquent d&apos;expérience DevOps</li>
                       <li>• 70% ont une formation en informatique</li>
                     </ul>
                   </div>
@@ -320,7 +320,7 @@ export default function AnalysisResultsPage() {
                     <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Recommandations générales</h4>
                     <ul className="text-sm text-green-700 dark:text-green-300 space-y-1">
                       <li>• Privilégier les candidats avec expérience cloud</li>
-                      <li>• Vérifier les compétences en gestion d'équipe</li>
+                      <li>• Vérifier les compétences en gestion d&apos;équipe</li>
                       <li>• Considérer la formation continue</li>
                     </ul>
                   </div>

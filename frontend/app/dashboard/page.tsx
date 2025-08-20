@@ -21,7 +21,8 @@ export default function DashboardPage() {
     totalRecruiters: 89,
     totalApplications: 3421,
     averageScore: 7.8
-  };
+  }; 
+  
 
   const recentApplications = [
     {
@@ -141,39 +142,7 @@ export default function DashboardPage() {
   ];
 
   // Table columns for users
-  const userColumns = [
-    { key: 'name', label: 'Nom' },
-    { key: 'email', label: 'Email' },
-    { 
-      key: 'role', 
-      label: 'Rôle',
-      render: (value: string) => {
-        const variant = value === 'admin' ? 'danger' : value === 'recruiter' ? 'info' : 'success';
-        const label = value === 'admin' ? 'Administrateur' : value === 'recruiter' ? 'Recruteur' : 'Candidat';
-        return <Badge variant={variant}>{label}</Badge>;
-      }
-    },
-    { 
-      key: 'status', 
-      label: 'Statut',
-      render: (value: string) => (
-        <Badge variant={value === 'actif' ? 'success' : 'default'}>
-          {value === 'actif' ? 'Actif' : 'Inactif'}
-        </Badge>
-      )
-    },
-    { key: 'lastLogin', label: 'Dernière connexion' },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: () => (
-        <div className="flex space-x-2">
-          <Button size="sm" variant="outline">Modifier</Button>
-          <Button size="sm" variant="danger">Supprimer</Button>
-        </div>
-      )
-    }
-  ];
+  // Removed unused userColumns variable to fix the error
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -214,7 +183,7 @@ export default function DashboardPage() {
         <div className="p-4 sm:p-6 lg:p-8">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vue d'ensemble</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vue sensemble</h1>
               
               {/* Stats cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
