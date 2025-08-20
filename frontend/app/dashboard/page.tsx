@@ -215,7 +215,7 @@ export default function DashboardPage() {
         <div className="p-4 sm:p-6 lg:p-8">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vue d'ensemble</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vue sensemble</h1>
               
               {/* Stats cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
