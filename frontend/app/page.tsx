@@ -38,7 +38,7 @@ export default function HomePage() {
           <div className="text-center">
             <h1 className="text-4xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
               Trouvez vos meilleurs candidats avec{' '}
-              <span className="text-blue-600 dark:text-blue-400">l'IA</span>
+              <span className="text-blue-600 dark:text-blue-400">l&apos;IA</span>
             </h1>
             <p className="text-xl text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
               Uploadez vos CV, notre IA analyse et vous donne le Top 10 des meilleurs candidats
@@ -94,10 +94,10 @@ export default function HomePage() {
                 <span className="text-2xl font-bold text-green-600 dark:text-green-400">2</span>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                L'IA analyse
+                L&apos;IA analyse
               </h3>
               <p className="text-gray-600 dark:text-gray-300">
-                Notre IA compare tous les profils, évalue les compétences, l'expérience et l'adéquation au poste.
+                Notre IA compare tous les profils, évalue les compétences, l&apos;expérience et l&apos;adéquation au poste.
               </p>
             </div>
 
@@ -186,7 +186,7 @@ export default function HomePage() {
                 Rapports détaillés
               </h3>
               <p className="text-gray-600 dark:text-gray-300">
-                Rapports PDF complets avec analyses comparatives, points forts/faibles et suggestions d'entretien.
+                Rapports PDF complets avec analyses comparatives, points forts/faibles et suggestions d&apos;entretien.
               </p>
             </div>
 
@@ -201,7 +201,7 @@ export default function HomePage() {
                 Notifications automatiques
               </h3>
               <p className="text-gray-600 dark:text-gray-300">
-                Recevez des emails quand l'analyse est terminée et partagez les résultats avec votre équipe.
+                Recevez des emails quand l&apos;analyse est terminée et partagez les résultats avec votre équipe.
               </p>
             </div>
 
@@ -248,7 +248,7 @@ export default function HomePage() {
             <div>
               <h3 className="text-xl font-bold text-blue-400 mb-4">CV Analyzer</h3>
               <p className="text-gray-400">
-                L'IA qui révolutionne le recrutement en trouvant vos meilleurs candidats.
+                L&apos;IA qui révolutionne le recrutement en trouvant vos meilleurs candidats.
               </p>
             </div>
             <div>
