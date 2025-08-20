@@ -11,7 +11,7 @@ export default function AnalysisResultsPage() {
 
   // Mock data for analysis results
   const analysisData = {
-    jobTitle: 'Développeur Full Stack',
+    jobTitle: 'Développeur fulle Stack',
     company: 'TechCorp',
     totalCandidates: 45,
     analysisDate: '2024-01-15',
