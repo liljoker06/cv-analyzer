@@ -21,7 +21,8 @@ export default function DashboardPage() {
     totalRecruiters: 89,
     totalApplications: 3421,
     averageScore: 7.8
-  };
+  }; 
+  
 
   const recentApplications = [
     {
