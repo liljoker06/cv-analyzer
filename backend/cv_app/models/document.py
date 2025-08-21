@@ -8,7 +8,7 @@ class DocumentFile(Document):
     doc_type = StringField(choices=["cv", "cover_letter", "other"], default="cv")
     uploaded_at = DateTimeField(default=datetime.datetime.utcnow)
 
-    meta = {"collection": "documents"}
+    meta = {"collection": "documents", "db_alias": "default"}
 
     def __str__(self):
         return f"{self.candidate} - {self.doc_type}"

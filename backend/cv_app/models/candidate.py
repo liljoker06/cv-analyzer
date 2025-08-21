@@ -20,7 +20,7 @@ class Candidate(Document):
     skills = ListField(StringField(), default=[])  # liste de compétences
     created_at = DateTimeField(default=datetime.utcnow)
 
-    meta = {"collection": "candidates"}
+    meta = {"collection": "candidates", "db_alias": "default"}
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} - {self.applied_position}"

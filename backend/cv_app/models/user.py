@@ -8,7 +8,7 @@ class User(Document):
     role = StringField(default="recruiter", choices=["admin", "recruiter"])
     is_active = BooleanField(default=True)
     created_at = DateTimeField(default=datetime.datetime.now(datetime.UTC))
-    meta = {"collection": "users"}
+    meta = {"collection": "users", "db_alias": "default"}
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
