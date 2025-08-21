@@ -1,6 +1,6 @@
 from django.urls import path
-from cv_app.views.extract_data_analysis_views import LaunchAnalysisView
+from cv_app.views.extract_data_analysis_views import parse_uploaded_cv
 
 urlpatterns = [
-    path("extract/launch/", LaunchAnalysisView.as_view(), name="launch_analysis"),
+    path('parse-cv/', parse_uploaded_cv, name='parse_uploaded_cv'),
 ]
