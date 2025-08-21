@@ -1,15 +1,19 @@
 import os
-import re  
+import re
 import uuid
 import tempfile
 from typing import List, Tuple, Dict, Any
+
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+
 from cv_ai.services.ai_cv_parser import parse_cv
 from cv_ai.services.ai_structure import structure_batch_from_extraction
-from cv_ai.services.ai_matcher import analyze_candidates_from_parse_results  
+from cv_ai.services.ai_matcher import analyze_candidates_from_parse_results
+from cv_app.services.persist_from_ai import persist_from_payload  # <-- persistance
 
 TEMP_SUBDIR = "cv_analyzer_uploads"
+
 
 def _save_to_temp(uploaded_file) -> str:
     base_tmp = tempfile.gettempdir()
@@ -23,7 +27,14 @@ def _save_to_temp(uploaded_file) -> str:
             out.write(chunk)
     return tmp_path
 
+
 def _collect_files(request) -> List[Tuple[str, Any]]:
+    """
+    Récupère tous les fichiers envoyés :
+    - 'file' répété (input multiple)
+    - ou 'files'
+    Retourne une liste de tuples (original_name, uploaded_file)
+    """
     files: List[Tuple[str, Any]] = []
     for f in request.FILES.getlist("file"):
         files.append((getattr(f, "name", "unknown.pdf"), f))
@@ -31,7 +42,9 @@ def _collect_files(request) -> List[Tuple[str, Any]]:
         files.append((getattr(f, "name", "unknown.pdf"), f))
     return files
 
-def _split_skills(s: str) -> List[str]:  # <-- NEW
+
+def _split_skills(s: str) -> List[str]:
+    """CSV/; ou sauts de ligne -> liste normalisée, dédupliquée (lower)."""
     if not s:
         return []
     raw = [p.strip() for p in re.split(r"[,\n;]+", s) if p.strip()]
@@ -39,17 +52,22 @@ def _split_skills(s: str) -> List[str]:  # <-- NEW
     for x in raw:
         t = x.lower()
         if t not in seen:
-            seen.add(t); out.append(t)
+            seen.add(t)
+            out.append(t)
     return out
+
 
 @csrf_exempt
 def parse_uploaded_cv(request, *, delete_after=True):
     """
     Supporte 1 ou plusieurs CV.
+
     Flags:
       - structure=1 -> ajoute 'structured' par CV
       - analyze=1   -> génère 'analysis' (Top-K) en utilisant la fiche de poste postée
-    Champs fiche de poste attendus (POST):
+      - persist=0   -> désactive la persistance en base (par défaut, persiste)
+
+    Champs fiche de poste attendus (POST) pour analyze:
       - title, company, location, experience_required, description, required_skills
       (+ alias: job_location/location, experience, job_description/description, skills/required_skills)
       - top_k, llm_insights, llm_on_top_n (optionnels)
@@ -61,7 +79,10 @@ def parse_uploaded_cv(request, *, delete_after=True):
     if not files:
         uploaded = request.FILES.get("file")
         if not uploaded:
-            return JsonResponse({"error": "Envoyez un ou plusieurs fichiers via 'file' (multiple) ou 'files'."}, status=400)
+            return JsonResponse(
+                {"error": "Envoyez un ou plusieurs fichiers via 'file' (multiple) ou 'files'."},
+                status=400
+            )
         files = [(getattr(uploaded, "name", "unknown.pdf"), uploaded)]
 
     job_title = request.POST.get("title", "") or ""
@@ -70,13 +91,16 @@ def parse_uploaded_cv(request, *, delete_after=True):
 
     # Flags
     want_structure = (request.GET.get("structure") == "1") or (request.POST.get("structure") == "1")
-    want_analyze   = (request.GET.get("analyze") == "1") or (request.POST.get("analyze") == "1")
+    want_analyze = (request.GET.get("analyze") == "1") or (request.POST.get("analyze") == "1")
     if want_analyze:  # l’analyse nécessite la structuration
         want_structure = True
 
     results = []
+    to_cleanup: List[str] = []  # on nettoie à la fin (persistance avant)
+
     for original_name, uploaded in files:
         tmp_path = _save_to_temp(uploaded)
+        to_cleanup.append(tmp_path)
         try:
             parsed = parse_cv(tmp_path, job_title=job_title, required_skills=required_skills)
             results.append({
@@ -93,18 +117,20 @@ def parse_uploaded_cv(request, *, delete_after=True):
                 "status": "error",
                 "error": str(e),
             })
-        finally:
-            if delete_after:
-                try:
-                    os.remove(tmp_path)
-                except Exception:
-                    pass
 
     # --- Réponses ---
-    # compat: 1 seul fichier -> format simple
+    # compat: 1 seul fichier -> format simple (et pas d'analyse)
     if len(results) == 1 and not want_analyze:
         r = results[0]
         if r["status"] != "ok":
+            # cleanup
+            if delete_after:
+                for p in to_cleanup:
+                    try:
+                        if p and os.path.exists(p):
+                            os.remove(p)
+                    except Exception:
+                        pass
             return JsonResponse({"error": r.get("error", "Erreur inconnue"), "tmp_path": r["tmp_path"]}, status=500)
 
         payload = {"tmp_path": r["tmp_path"], "parsed": r["parsed"]}
@@ -117,11 +143,29 @@ def parse_uploaded_cv(request, *, delete_after=True):
             except Exception as e:
                 payload["structured_error"] = str(e)
 
+        # persistance (simple)
+        try:
+            if request.POST.get("persist", "1") != "0":
+                persist_info = persist_from_payload({"count": 1, "results": [r], **({"analysis": {}})})
+                payload["persisted"] = persist_info
+        except Exception as e:
+            payload["persist_error"] = str(e)
+
+        # cleanup
+        if delete_after:
+            for p in to_cleanup:
+                try:
+                    if p and os.path.exists(p):
+                        os.remove(p)
+                except Exception:
+                    pass
+
         return JsonResponse(payload, status=200)
 
     # multi-fichiers (ou analyse demandée)
-    response = {"count": len(results), "results": results}
+    response: Dict[str, Any] = {"count": len(results), "results": results}
 
+    # Structuration
     if want_structure:
         try:
             structured_batch = structure_batch_from_extraction(response)
@@ -136,9 +180,8 @@ def parse_uploaded_cv(request, *, delete_after=True):
         except Exception as e:
             response["structured_error"] = str(e)
 
-    # --- ANALYSE & TOP-K (facultatif) ---
+    # Analyse & TOP-K
     if want_analyze:
-        # on tolère plusieurs noms de champs côté front
         job_profile = {
             "title": request.POST.get("title", "") or "",
             "company": request.POST.get("company", "") or "",
@@ -160,5 +203,25 @@ def parse_uploaded_cv(request, *, delete_after=True):
             response["analysis"] = analysis
         except Exception as e:
             response["analysis_error"] = str(e)
+
+    # Persistance globale (multi ou avec analyse)
+    try:
+        if request.POST.get("persist", "1") != "0":
+            payload_to_persist: Dict[str, Any] = {"count": len(results), "results": results}
+            if "analysis" in response:
+                payload_to_persist["analysis"] = response["analysis"]
+            persist_info = persist_from_payload(payload_to_persist)
+            response["persisted"] = persist_info
+    except Exception as e:
+        response["persist_error"] = str(e)
+
+    # Cleanup final
+    if delete_after:
+        for p in to_cleanup:
+            try:
+                if p and os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
 
     return JsonResponse(response, status=200)
