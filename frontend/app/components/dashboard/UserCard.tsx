@@ -4,15 +4,15 @@ import Button from '../ui/Button';
 
 interface UserCardProps {
   user: {
-    id: number;
+    id: string;
     name: string;
     email: string;
     role: string;
     status: string;
-    lastLogin: string;
+    last_login?: string;
   };
-  onEdit?: (id: number) => void;
-  onDelete?: (id: number) => void;
+  onEdit?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 export default function UserCard({
@@ -76,7 +76,7 @@ export default function UserCard({
 
       <div className="flex items-center justify-between">
         <div className="text-sm text-gray-500 dark:text-gray-400">
-          Dernière connexion : {user.lastLogin}
+          Dernière connexion : {user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Jamais'}
         </div>
         <div className="flex space-x-2">
           {onEdit && (

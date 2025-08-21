@@ -1,22 +1,43 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import RegisterForm from '../components/forms/RegisterForm';
+import { authService } from '../utils/auth';
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (formData: any) => {
     setLoading(true);
-    // TODO: Implement registration logic
-    console.log('Registration attempt:', formData);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    if (formData.password !== formData.confirmPassword) {
+      setError("Les mots de passe ne correspondent pas.");
       setLoading(false);
-      // TODO: Redirect to dashboard or show success message
-    }, 2000);
+      return;
+    }
+    
+    try {
+      setError("L'inscription est réservée aux administrateurs. Contacter l'admin pour créer un compte.");
+      setLoading(false);
+
+      await authService.register({
+        username: `${formData.firstName.toLowerCase()}_${formData.lastName.toLowerCase()}`,
+        email: formData.email,
+        password: formData.password,
+        password2: formData.confirmPassword
+      });
+      
+      // Redirect to dashboard on success
+      router.push('/dashboard');
+    } catch (err: any) {
+      setError(err.message || "Une erreur est survenue lors de l'inscription");
+      setLoading(false);
+    }
   };
 
   return (
@@ -37,6 +58,13 @@ export default function RegisterPage() {
           </p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+        
         {/* Register Form Component */}
         <RegisterForm onSubmit={handleRegister} loading={loading} />
 

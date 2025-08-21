@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
@@ -10,12 +10,54 @@ import ApplicationCard from '../components/dashboard/ApplicationCard';
 import UserCard from '../components/dashboard/UserCard';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
+import DeleteConfirmation from '../components/ui/DeleteConfirmation';
+import { usersService, User } from '../utils/users-api';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{userId: string, open: boolean}>({ userId: '', open: false });
 
-  // Mock data
+  // Chargement des utilisateurs
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await usersService.getAllUsers();
+      setUsers(data);
+      setError(null);
+    } catch (err) {
+      console.error('Erreur lors du chargement des utilisateurs:', err);
+      setError('Impossible de charger les utilisateurs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Charge les utilisateurs l'onglet 'users' est actif
+    if (activeTab === 'users') {
+      loadUsers();
+    }
+  }, [activeTab]);
+
+  // Fonction pour gérer la suppression d'un utilisateur
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      setLoading(true);
+      await usersService.deleteUser(userId);
+      await loadUsers();
+      setDeleteConfirmation({ userId: '', open: false });
+    } catch (err) {
+      console.error('Erreur lors de la suppression de l\'utilisateur:', err);
+      setError('Impossible de supprimer l\'utilisateur');
+      setLoading(false);
+    }
+  };
+
+  // Mock data pour d'autres sections
   const stats = {
     totalCandidates: 1247,
     totalRecruiters: 89,
@@ -27,12 +69,6 @@ export default function DashboardPage() {
     { id: 1, candidateName: 'Marie Dubois', position: 'Développeur Full Stack', score: 8.5, status: 'En attente', date: '2024-01-15' },
     { id: 2, candidateName: 'Pierre Martin', position: 'Data Scientist', score: 9.2, status: 'Approuvé', date: '2024-01-14' },
     { id: 3, candidateName: 'Sophie Bernard', position: 'UX Designer', score: 7.8, status: 'En cours', date: '2024-01-13' }
-  ];
-
-  const users = [
-    { id: 1, name: 'Jean Dupont', email: 'jean.dupont@email.com', role: 'admin', status: 'actif', lastLogin: '2024-01-15' },
-    { id: 2, name: 'Marie Martin', email: 'marie.martin@company.com', role: 'recruiter', status: 'actif', lastLogin: '2024-01-14' },
-    { id: 3, name: 'Pierre Durand', email: 'pierre.durand@email.com', role: 'candidate', status: 'inactif', lastLogin: '2024-01-10' }
   ];
 
   const sidebarItems = [
@@ -84,6 +120,15 @@ export default function DashboardPage() {
             </div>
           }
         />
+        
+        {/* Boîte de dialogue de confirmation de suppression */}
+        <DeleteConfirmation
+          isOpen={deleteConfirmation.open}
+          title="Supprimer l'utilisateur"
+          message="Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible."
+          onConfirm={() => handleDeleteUser(deleteConfirmation.userId)}
+          onCancel={() => setDeleteConfirmation({ userId: '', open: false })}
+        />
 
         {/* Page content */}
         <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto">
@@ -122,9 +167,43 @@ export default function DashboardPage() {
                   <Button>Ajouter un utilisateur</Button>
                 </Link>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {users.map(user => <UserCard key={user.id} user={user} />)}
-              </div>
+              
+              {loading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                </div>
+              )}
+              
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                  {error}
+                </div>
+              )}
+              
+              {!loading && !error && users.length === 0 && (
+                <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 dark:text-gray-300">Aucun utilisateur trouvé</p>
+                </div>
+              )}
+              
+              {!loading && !error && users.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {users.map(user => {
+                    const userWithRequiredProps = {
+                      ...user,
+                      name: user.name || user.email.split('@')[0],
+                      status: user.status || (user.is_active ? 'actif' : 'inactif')
+                    };
+                    
+                    return <UserCard 
+                      key={user.id} 
+                      user={userWithRequiredProps as User & { name: string, status: string }}
+                      onEdit={(id) => window.location.href = `/dashboard/edit-user/${id}`}
+                      onDelete={(id) => setDeleteConfirmation({ userId: id, open: true })}
+                    />;
+                  })}
+                </div>
+              )}
             </div>
           )}
 
