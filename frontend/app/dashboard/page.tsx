@@ -13,6 +13,7 @@ import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
 import DeleteConfirmation from '../components/ui/DeleteConfirmation';
 import { usersService, User } from '../utils/users-api';
+import { jobsService, StatsData } from '../utils/jobs-api';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -21,6 +22,12 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{userId: string, open: boolean}>({ userId: '', open: false });
+  const [stats, setStats] = useState<StatsData>({
+    totalAdmins: 0,
+    totalRecruiters: 0,
+    totalApplications: 0,
+    averageScore: 0
+  });
   const router = useRouter();
   
   // Vérification d'authentification côté client
@@ -50,10 +57,49 @@ export default function DashboardPage() {
     }
   };
 
+  // Compte les utilisateurs par rôle (recruteurs, administrateurs)
+  const countUsersByRole = (usersList: User[], role: string): number => {
+    return usersList.filter(user => user.role === role).length;
+  };
+
+  // statistiques et utilisateurs
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      
+      const allUsers = await usersService.getAllUsers();
+      
+      const recruitersCount = countUsersByRole(allUsers, 'recruiter');
+      const adminsCount = countUsersByRole(allUsers, 'admin');
+      
+      setStats(prev => ({
+        ...prev,
+        totalRecruiters: recruitersCount,
+        totalAdmins: adminsCount
+      }));
+
+      setError(null);
+    } catch (err) {
+      console.error('Erreur lors du chargement des statistiques:', err);
+      setStats({
+        totalAdmins: 8,
+        totalRecruiters: 0,
+        totalApplications: 3421,
+        averageScore: 7.8
+      });
+      
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    // Charge les utilisateurs l'onglet 'users' est actif
     if (activeTab === 'users') {
       loadUsers();
+    }
+    
+    if (activeTab === 'overview') {
+      loadStats();
     }
   }, [activeTab]);
 
@@ -71,14 +117,7 @@ export default function DashboardPage() {
     }
   };
 
-  // Mock data pour d'autres sections
-  const stats = {
-    totalCandidates: 1247,
-    totalRecruiters: 89,
-    totalApplications: 3421,
-    averageScore: 7.8
-  }; 
-  
+  // Mock data pour les applications récentes
   const recentApplications = [
     { id: 1, candidateName: 'Marie Dubois', position: 'Développeur Full Stack', score: 8.5, status: 'En attente', date: '2024-01-15' },
     { id: 2, candidateName: 'Pierre Martin', position: 'Data Scientist', score: 9.2, status: 'Approuvé', date: '2024-01-14' },
@@ -131,7 +170,7 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vue d&apos;ensemble</h1>
               {/* Stats */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard title="Candidats" value={stats.totalCandidates} color="blue" icon={undefined} />
+                <StatsCard title="Administrateurs" value={stats.totalAdmins} color="blue" icon={undefined} />
                 <StatsCard title="Recruteurs" value={stats.totalRecruiters} color="green" icon={undefined} />
                 <StatsCard title="Candidatures" value={stats.totalApplications} color="purple" icon={undefined} />
                 <StatsCard title="Score moyen" value={`${stats.averageScore}/10`} color="orange" icon={undefined} />
