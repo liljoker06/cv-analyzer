@@ -1,5 +1,6 @@
 # Python virtual environment
 venv/
+venv/lib/
 
 #  tous les pycache
 __pycache__/
