@@ -28,6 +28,11 @@ JWT_SECRET = config("JWT_SECRET", default=SECRET_KEY)
 JWT_ALG = config("JWT_ALG", default="HS256")
 JWT_EXPIRES_H = int(config("JWT_EXPIRES_H", default=24))
 
+HF_API_TOKEN = config("HF_API_TOKEN", default="")
+HF_MODEL = config("HF_MODEL", default="Qwen/Qwen2.5-7B-Instruct")
+HF_MAX_NEW_TOKENS = config("HF_MAX_NEW_TOKENS", cast=int, default=384)
+
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 

@@ -1,2 +1,5 @@
 .history
 .lh
+
+backend/.env
+backend/venv/
