@@ -101,3 +101,27 @@ class LoginView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=500)
+
+# Récupération de tout les utilisateurs
+class GetAllUsersView(APIView):
+    def get(self, request):
+        try:
+            users = User.objects.all()
+            user_data = [{"id": str(user.id), "email": user.email, "role": user.role, "is_active": user.is_active} for user in users]
+            return Response(user_data, status=200)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+# Récupération des données de l'utilisateurs connecté
+class GetCurrentUserView(APIView):
+    def get(self, request):
+        try:
+            user = request.user
+            user_data = {
+                "id": str(user.id),
+                "email": user.email,
+                "role": user.role
+            }
+            return Response(user_data, status=200)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)

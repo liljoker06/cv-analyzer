@@ -2,24 +2,77 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/Header';
 import CreateUserForm from '../../components/forms/CreateUserForm';
 import Button from '../../components/ui/Button';
+import { authService } from '../../utils/auth';
 
 export default function CreateUserPage() {
   const [loading, setLoading] = useState(false);
   const [userType, setUserType] = useState<'recruiter' | 'admin'>('recruiter');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleCreateUser = async (formData: any) => {
     setLoading(true);
-    // TODO: Implement user creation logic
-    console.log('Creating user:', formData);
+    setError(null);
+    setSuccess(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const token = authService.getToken();
+      
+      if (!token) {
+        setError('Vous devez être connecté pour créer un utilisateur');
+        setLoading(false);
+        return;
+      }
+
+      // mdp correspondant
+      if (formData.password !== formData.confirmPassword) {
+        setError('Les mots de passe ne correspondent pas');
+        setLoading(false);
+        return;
+      }
+      
+      //  données à envoyer (uniquement celles attendues par l'API)
+      const payload = {
+        email: formData.email,
+        password: formData.password,
+        role: userType, 
+      };
+      
+      console.log('Sending data:', payload);
+      
+      // créer l'utilisateur
+      const response = await fetch('/api/auth/create-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Échec de la création de l\'utilisateur');
+      }
+      
+      // message de succès
+      setSuccess(`Utilisateur ${formData.email} créé avec succès !`);
+      
+      setTimeout(() => {
+        router.refresh(); // refresh pour montrer les changements
+      }, 2000);
+    } catch (err: any) {
+      console.error('Erreur lors de la création de l\'utilisateur:', err);
+      setError(err.message || 'Une erreur est survenue');
+    } finally {
       setLoading(false);
-      // TODO: Show success message and redirect
-    }, 2000);
+    }
   };
 
   return (
@@ -32,6 +85,19 @@ export default function CreateUserPage() {
       />
 
       <div className="max-w-2xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Messages d'erreur et de succès */}
+        {error && (
+          <div className="mb-6 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+        
+        {success && (
+          <div className="mb-6 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{success}</span>
+          </div>
+        )}
+        
         {/* User Type Selection */}
         <div className="mb-8">
           <h2 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
