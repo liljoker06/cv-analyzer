@@ -1,10 +1,3 @@
-# cv_app/views/extract_data_analysis_views.py
-# -----------------------------------------------------------
-# Upload de CVs + extraction minimale + création du Job +
-# upsert des candidats + calcul de scores placeholder +
-# retour JSON pour l'écran Top 10 / Stats / Insights.
-# -----------------------------------------------------------
-
 import re
 import time
 from datetime import datetime, timezone
@@ -21,19 +14,21 @@ from cv_app.models.candidate import Candidate
 from cv_app.models.document import DocumentFile
 from cv_app.models.analysis import Analysis
 
-# ---- Dépendances extraction (facultatives : on gère l'absence proprement)
+# IA (service interne)
+from cv_ai.services.extractor import analyze_cv_text
+
+# Libs d'extraction
 try:
     import PyPDF2  # type: ignore
-except Exception:  # pragma: no cover
+except Exception:
     PyPDF2 = None
 
 try:
-    import docx  # python-docx  # type: ignore
-except Exception:  # pragma: no cover
+    import docx  # type: ignore
+except Exception:
     docx = None
 
 
-# ---- Paramètres d'upload
 ALLOWED_CT = {
     "application/pdf",
     "application/msword",
@@ -42,37 +37,48 @@ ALLOWED_CT = {
 MAX_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
-# ---------------------- Utils extraction ----------------------
+def _short(s: Optional[str], n: int = 220) -> str:
+    """Aperçu court pour logs."""
+    if not s:
+        return ""
+    s = s.replace("\n", " ").replace("\r", " ")
+    return (s[:n] + "…") if len(s) > n else s
+
+
+# ---------------------- Extraction utils ----------------------
 def _extract_text_from_pdf(file_obj) -> str:
-    """Extrait un texte brut depuis un PDF."""
     if not PyPDF2:
+        print("[extract] PyPDF2 indisponible → ''")
         return ""
     try:
         reader = PyPDF2.PdfReader(file_obj)
-        return "\n".join((p.extract_text() or "") for p in reader.pages)
-    except Exception:
+        text = "\n".join((p.extract_text() or "") for p in reader.pages)
+        return text
+    except Exception as e:
+        print(f"[extract][pdf] erreur: {e}")
         return ""
 
 
 def _extract_text_from_docx(file_obj) -> str:
-    """Extrait un texte brut depuis un DOCX."""
     if not docx:
+        print("[extract] python-docx indisponible → ''")
         return ""
     try:
         d = docx.Document(file_obj)
         return "\n".join(p.text for p in d.paragraphs)
-    except Exception:
+    except Exception as e:
+        print(f"[extract][docx] erreur: {e}")
         return ""
 
 
 def _extract_text(uploaded) -> str:
-    """Tente d'extraire un texte selon l'extension / content-type."""
     name = getattr(uploaded, "name", "").lower()
     ctype = getattr(uploaded, "content_type", "").lower()
     if "pdf" in name or ctype == "application/pdf":
         return _extract_text_from_pdf(uploaded)
     if name.endswith(".docx") or ctype == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return _extract_text_from_docx(uploaded)
+    print(f"[extract] type non géré name={name} ctype={ctype} → ''")
     return ""
 
 
@@ -91,7 +97,6 @@ def _guess_phone(text: str) -> Optional[str]:
 
 
 def _normalize_skills(raw: str) -> List[str]:
-    """Nettoie une chaîne de compétences en liste normalisée en minuscules."""
     if not raw:
         return []
     parts = re.split(r"[,\n;]", raw)
@@ -99,7 +104,7 @@ def _normalize_skills(raw: str) -> List[str]:
 
 
 def _parse_skills_from_text(text: str) -> List[str]:
-    """Détection très simple de quelques compétences dans le CV (placeholder)."""
+    # Fallback ultra-simple
     seeds = [
         "python", "django", "fastapi", "flask", "pandas", "numpy", "scikit-learn",
         "machine learning", "ml", "deep learning", "nlp", "sql", "nosql", "mongodb",
@@ -111,22 +116,15 @@ def _parse_skills_from_text(text: str) -> List[str]:
 
 
 def _compute_scores(candidate_skills: List[str], required_skills: List[str]) -> Dict[str, float]:
-    """
-    Calcule des scores de manière simplifiée (placeholder avant la vraie IA).
-    - skills_score: % de match des compétences requises, ramené sur 10
-    - autres scores: 5.0 par défaut
-    - overall_score: moyenne pondérée simple
-    """
     req = [s.strip().lower() for s in required_skills if s.strip()]
     cand = [s.strip().lower() for s in candidate_skills]
     if not req:
-        skills = 5.0  # neutre si rien n'est demandé
+        skills = 5.0
     else:
         overlap = len(set(req).intersection(set(cand)))
         pct = 10.0 * overlap / max(1, len(req))
         skills = round(pct, 1)
 
-    # placeholders (à remplacer par l'IA plus tard)
     experience = 5.0
     education = 5.0
     communication = 5.0
@@ -147,27 +145,26 @@ def _compute_scores(candidate_skills: List[str], required_skills: List[str]) -> 
 @method_decorator(csrf_exempt, name="dispatch")
 class LaunchAnalysisView(APIView):
     """
-    Reçoit le formulaire RH + plusieurs fichiers (PDF/DOCX),
-    crée le Job, upsert les candidats, stocke les documents (GridFS via FileField),
-    calcule des scores simplifiés et renvoie Top 10 + stats + insights.
-
-    Form-data attendu (multipart/form-data) :
-      - title (str) [requis]
-      - company (str)
-      - location (str)
-      - experience_required (str)
-      - description (str)
-      - required_skills (str ; liste séparée par virgule/ligne)
-      - files[] (un ou plusieurs fichiers PDF/DOCX)
+    POST multipart/form-data:
+      - title (requis)
+      - company, location, experience_required, description
+      - required_skills (CSV/ligne par ligne)
+      - files[] (plusieurs PDF/DOCX)
     """
     parser_classes = [MultiPartParser, FormParser]
 
     def post(self, request):
         t0 = time.time()
+        print("=== [/api/extract/launch] START ===")
+        print(f"[req] Content-Type: {request.content_type}")
+        print(f"[req] Headers Accept-Language: {request.headers.get('Accept-Language')}")
+        print(f"[req] POST keys: {list(request.POST.keys())}")
+        print(f"[req] FILES keys: {list(request.FILES.keys())}")
 
-        # 1) Création de la fiche de poste
+        # 1) Job
         title = request.POST.get("title")
         if not title:
+            print("[err] 'title' manquant dans form-data.")
             return Response({"error": "Le champ 'title' est requis."}, status=400)
 
         job = JobPosting(
@@ -179,42 +176,76 @@ class LaunchAnalysisView(APIView):
             required_skills=_normalize_skills(request.POST.get("required_skills", "")),
             created_at=datetime.now(timezone.utc),
         ).save()
+        print(f"[job] créé id={job.id} title={job.title} skills={job.required_skills}")
 
-        # 2) Récupération des fichiers
+        # 2) Fichiers
         files = request.FILES.getlist("files") or request.FILES.getlist("files[]")
+        print(f"[files] count={len(files)}")
         if not files:
+            print("[err] aucun fichier reçu (files[]).")
             return Response({"error": "Aucun fichier fourni (paramètre files[])."}, status=400)
 
-        processed = []
-        skipped = []
+        processed, skipped = [], []
 
-        for f in files:
+        for idx, f in enumerate(files, 1):
+            name = getattr(f, "name", "?")
+            size = getattr(f, "size", None)
+            ctype = getattr(f, "content_type", None)
+            print(f"\n[file#{idx}] name={name} size={size} ctype={ctype}")
+
             try:
-                # Contrôles simples
-                if f.size and f.size > MAX_SIZE:
-                    skipped.append({"filename": f.name, "reason": "file too large"})
+                if size and size > MAX_SIZE:
+                    reason = "file too large"
+                    print(f"[skip] {name}: {reason}")
+                    skipped.append({"filename": name, "reason": reason})
                     continue
-                if getattr(f, "content_type", None) not in ALLOWED_CT:
-                    skipped.append({"filename": f.name, "reason": "unsupported content-type"})
+                if ctype not in ALLOWED_CT:
+                    reason = "unsupported content-type"
+                    print(f"[skip] {name}: {reason}")
+                    skipped.append({"filename": name, "reason": reason})
                     continue
 
-                # Extraction de texte
+                # 3) Extraction texte
                 text = _extract_text(f)
+                print(f"[extract] len={len(text)} preview='{_short(text)}'")
                 try:
-                    f.seek(0)  # important pour re-lire le flux lors du put() GridFS
+                    f.seek(0)
                 except Exception:
                     pass
 
                 email = _guess_email(text)
                 phone = _guess_phone(text)
-                skills_from_text = _parse_skills_from_text(text)
+                print(f"[parse] email={email} phone={phone}")
+
+                # 4) IA (multi-secteur)
+                ai_res = None
+                try:
+                    locale = (request.headers.get("Accept-Language") or "fr").split(",")[0].strip().lower()
+                    ai_res = analyze_cv_text(
+                        cv_text=text,
+                        job_title=job.title,
+                        required_skills=job.required_skills,
+                        locale=locale,
+                    )
+                    print(f"[ai] ok skills={len(ai_res.get('skills', []))} "
+                          f"overall={ai_res.get('scores', {}).get('overall')}")
+                except Exception as e:
+                    print(f"[ai] erreur: {e}")
+
+                skills_from_text = (
+                    (ai_res.get("skills") if ai_res else None) or _parse_skills_from_text(text)
+                )
+                print(f"[skills] detected={skills_from_text}")
 
                 if not email:
-                    skipped.append({"filename": f.name, "reason": "email not found in CV"})
+                    reason = "email not found in CV"
+                    print(f"[skip] {name}: {reason}")
+                    skipped.append({"filename": name, "reason": reason})
                     continue
 
-                # 3) Upsert Candidat depuis l'email
+                # 5) Upsert Candidat
                 cand = Candidate.objects(email=email).first()
+                created = False
                 if not cand:
                     cand = Candidate(
                         first_name="",
@@ -225,6 +256,7 @@ class LaunchAnalysisView(APIView):
                         skills=skills_from_text,
                         created_at=datetime.now(timezone.utc),
                     ).save()
+                    created = True
                 else:
                     changed = False
                     if (not cand.phone) and phone:
@@ -236,21 +268,41 @@ class LaunchAnalysisView(APIView):
                         changed = True
                     if changed:
                         cand.save()
+                print(f"[candidate] id={cand.id} created={created} skills={cand.skills}")
 
-                # 4) Stockage du document (GridFS via mongoengine FileField)
+                # 6) Stockage document
                 doc = DocumentFile(candidate=cand, doc_type="cv")
                 doc.file.put(
-                    f,
-                    filename=getattr(f, "name", "upload"),
+                    f, filename=getattr(f, "name", "upload"),
                     content_type=getattr(f, "content_type", None),
                 )
                 doc.save()
+                print(f"[document] id={doc.id} saved")
 
-                # 5) Calcul des scores placeholder
-                scores = _compute_scores(cand.skills or [], job.required_skills)
+                # 7) Scores (IA → fallback)
+                if ai_res and isinstance(ai_res.get("scores"), dict):
+                    s = ai_res["scores"]
+                    scores = {
+                        "skills_score": float(s.get("skills", 5.0)),
+                        "experience_score": float(s.get("experience", 5.0)),
+                        "education_score": float(s.get("education", 5.0)),
+                        "communication_score": float(s.get("communication", 5.0)),
+                        "culture_score": float(s.get("culture", 5.0)),
+                        "overall_score": float(s.get("overall", 5.0)),
+                    }
+                    strengths_text = ", ".join(ai_res.get("strengths", []))
+                    weaknesses_text = ", ".join(ai_res.get("weaknesses", []))
+                    recommendations_text = ", ".join(ai_res.get("recommendations", []))
+                else:
+                    scores = _compute_scores(cand.skills or [], job.required_skills)
+                    strengths_text = "Compétences détectées : " + ", ".join((cand.skills or [])[:10])
+                    weaknesses_text = "À affiner via IA."
+                    recommendations_text = "Vérifier adéquation soft skills."
+                print(f"[scores] {scores}")
 
-                # 6) Upsert Analyse (unique par couple job+candidat)
+                # 8) Upsert Analyse
                 ana = Analysis.objects(job=job, candidate=cand).first()
+                created_ana = False
                 if not ana:
                     ana = Analysis(
                         job=job,
@@ -261,12 +313,13 @@ class LaunchAnalysisView(APIView):
                         education_score=scores["education_score"],
                         communication_score=scores["communication_score"],
                         culture_score=scores["culture_score"],
-                        strengths="Compétences détectées : " + ", ".join((cand.skills or [])[:10]),
-                        weaknesses="À affiner via IA.",
-                        recommendations="Vérifier adéquation soft skills.",
+                        strengths=strengths_text,
+                        weaknesses=weaknesses_text,
+                        recommendations=recommendations_text,
                         analyzed_at=datetime.now(timezone.utc),
                         status="pending",
                     ).save()
+                    created_ana = True
                 else:
                     ana.overall_score = scores["overall_score"]
                     ana.skills_score = scores["skills_score"]
@@ -274,8 +327,12 @@ class LaunchAnalysisView(APIView):
                     ana.education_score = scores["education_score"]
                     ana.communication_score = scores["communication_score"]
                     ana.culture_score = scores["culture_score"]
+                    ana.strengths = strengths_text
+                    ana.weaknesses = weaknesses_text
+                    ana.recommendations = recommendations_text
                     ana.analyzed_at = datetime.now(timezone.utc)
                     ana.save()
+                print(f"[analysis] id={ana.id} created={created_ana} overall={ana.overall_score}")
 
                 processed.append({
                     "candidate_id": str(cand.id),
@@ -284,10 +341,11 @@ class LaunchAnalysisView(APIView):
                     "score": ana.overall_score,
                 })
 
-            except Exception as e:  # pragma: no cover
-                skipped.append({"filename": getattr(f, "name", "?"), "reason": str(e)})
+            except Exception as e:
+                print(f"[error] file={name} err={e}")
+                skipped.append({"filename": name, "reason": str(e)})
 
-        # 7) Statistiques + Top 10 + Insights
+        # 9) Stats + Top 10 + Insights
         analyses = Analysis.objects(job=job).order_by("-overall_score")
         top10 = analyses[:10]
 
@@ -295,7 +353,6 @@ class LaunchAnalysisView(APIView):
         avg = round(sum(a.overall_score for a in analyses) / max(1, n), 1)
         dt_ms = int((time.time() - t0) * 1000)
 
-        # Insights ultra-simples (fréquence des skills)
         skill_counter: Dict[str, int] = {}
         for a in analyses:
             for s in (a.candidate.skills or []):
@@ -309,7 +366,10 @@ class LaunchAnalysisView(APIView):
             ],
         }
 
-        # 8) Payload compatible avec l’écran du front
+        print(f"\n=== [/api/extract/launch] END n={n} avg={avg} time_ms={dt_ms} "
+              f"processed={len(processed)} skipped={len(skipped)} ===")
+
+        # 10) Payload
         return Response({
             "job": {
                 "id": str(job.id),
@@ -321,7 +381,7 @@ class LaunchAnalysisView(APIView):
             },
             "stats": {
                 "candidates_analyzed": n,
-                "average_score": avg,           # /10
+                "average_score": avg,
                 "top10_generated": min(10, n),
                 "analysis_time_ms": dt_ms,
             },
@@ -332,7 +392,7 @@ class LaunchAnalysisView(APIView):
                               or a.candidate.email),
                 "email": a.candidate.email,
                 "main_skills": (a.candidate.skills or [])[:6],
-                "score": a.overall_score,       # /10
+                "score": a.overall_score,
                 "label": ("Recommandé" if a.overall_score >= 8.5
                           else ("À considérer" if a.overall_score >= 7.5 else "Moyen")),
                 "analysis_id": str(a.id),

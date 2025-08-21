@@ -17,6 +17,9 @@ djangorestframework==3.16.1
 djongo==1.2.31
 dnspython==2.7.0
 docx==0.2.4
+filelock==3.19.1
+fsspec==2025.7.0
+huggingface-hub==0.34.4
 idna==3.10
 Jinja2==3.1.6
 langcodes==3.5.0
@@ -41,8 +44,11 @@ pymongo==4.14.1
 PyMuPDF==1.26.3
 PyPDF2==3.0.1
 python-decouple==3.8
+PyYAML==6.0.2
+regex==2025.7.34
 requests==2.32.5
 rich==14.1.0
+safetensors==0.6.2
 setuptools==80.9.0
 shellingham==1.5.4
 smart_open==7.3.0.post1
@@ -52,7 +58,9 @@ spacy-loggers==1.0.5
 sqlparse==0.5.3
 srsly==2.5.1
 thinc==8.3.6
+tokenizers==0.21.4
 tqdm==4.67.1
+transformers==4.55.2
 typer==0.16.1
 typing-inspection==0.4.1
 typing_extensions==4.14.1

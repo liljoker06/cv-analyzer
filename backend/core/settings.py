@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'cv_app',
+    'cv_ai'
 ]
 
 MIDDLEWARE = [
