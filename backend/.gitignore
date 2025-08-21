@@ -8,3 +8,7 @@ cv_app/__pycache__/
 cv_app/migrations/__pycache__/
 cv_app/views/__pycache__/
 cv_app/models/__pycache__/
+
+*.env
+.env
+backend/.env

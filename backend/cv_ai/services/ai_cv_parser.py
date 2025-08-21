@@ -1,47 +1,29 @@
-from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
-import torch
+from __future__ import annotations
 
-HF_MODEL = "google/flan-t5-large"   # ou flan-ul2 pour plus de contexte
-HF_DEVICE = 0 if torch.cuda.is_available() else -1
+import os
+from typing import Union, IO, List
+from .pdf_extract import extract_text, normalize_whitespace  # <-- on utilise le nouveau module
 
-_PIPE = None
-_TOK = None
-
-def _get_pipe():
-    global _PIPE, _TOK
-    if _PIPE is None:
-        print(f"[ai_cv_parser] loading model: {HF_MODEL} (device={HF_DEVICE})")
-        _PIPE = pipeline(
-            "text2text-generation",
-            model=HF_MODEL,
-            tokenizer=HF_MODEL,
-            device=HF_DEVICE
-        )
-        _TOK = AutoTokenizer.from_pretrained(HF_MODEL, use_fast=True)
-    return _PIPE, _TOK
-
-
-def parse_cv_text(text: str) -> dict:
+# =========================
+#     PUBLIC API (brut)
+# =========================
+def parse_cv(
+    source: Union[str, os.PathLike, IO[bytes]],
+    job_title: str = "",                        # ignoré (compat)
+    required_skills: List[str] | None = None,   # ignoré (compat)
+) -> dict:
     """
-    Analyse un CV (texte brut extrait du PDF) et retourne un JSON structuré.
+    Extraction brute uniquement.
+    Retourne un JSON minimal: {"raw_text": "...", "chars": N}
+    Conserve la même signature que précédemment pour éviter de casser l'API.
     """
-    pipe, tok = _get_pipe()
+    text = extract_text(source)
 
-    prompt = f"""
-    Voici le texte d’un CV. Analyse-le et retourne les informations sous format JSON clair
-    avec les clés suivantes : "summary", "experiences", "education", "skills".
+    # normalisation légère (pas de regex)
+    text_norm = normalize_whitespace(text)
 
-    CV:
-    {text}
-    """
+    # log court pour éviter le spam
+    print("Texte brut extrait du PDF ===>")
+    print(text_norm[:2000])  # affiche les 2000 premiers caractères
 
-    result = pipe(prompt, max_length=1024, do_sample=False)[0]["generated_text"]
-
-    # Essaye de parser en JSON (si le modèle a bien respecté le format)
-    import json
-    try:
-        parsed = json.loads(result)
-    except:
-        parsed = {"raw_output": result}
-
-    return parsed
+    return {"raw_text": text_norm, "chars": len(text_norm)}
