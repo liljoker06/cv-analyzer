@@ -1,12 +1,13 @@
 import os
+import re  
 import uuid
 import tempfile
 from typing import List, Tuple, Dict, Any
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from cv_ai.services.ai_cv_parser import parse_cv 
+from cv_ai.services.ai_cv_parser import parse_cv
 from cv_ai.services.ai_structure import structure_batch_from_extraction
-
+from cv_ai.services.ai_matcher import analyze_candidates_from_parse_results  
 
 TEMP_SUBDIR = "cv_analyzer_uploads"
 
@@ -23,31 +24,35 @@ def _save_to_temp(uploaded_file) -> str:
     return tmp_path
 
 def _collect_files(request) -> List[Tuple[str, Any]]:
-    """
-    Récupère tous les fichiers envoyés :
-    - 'file' répété (input multiple)
-    - ou 'files'
-    Retourne une liste de tuples (original_name, uploaded_file)
-    """
     files: List[Tuple[str, Any]] = []
-    # plusieurs 'file'
     for f in request.FILES.getlist("file"):
         files.append((getattr(f, "name", "unknown.pdf"), f))
-    # plusieurs 'files'
     for f in request.FILES.getlist("files"):
         files.append((getattr(f, "name", "unknown.pdf"), f))
     return files
 
+def _split_skills(s: str) -> List[str]:  # <-- NEW
+    if not s:
+        return []
+    raw = [p.strip() for p in re.split(r"[,\n;]+", s) if p.strip()]
+    out, seen = [], set()
+    for x in raw:
+        t = x.lower()
+        if t not in seen:
+            seen.add(t); out.append(t)
+    return out
+
 @csrf_exempt
 def parse_uploaded_cv(request, *, delete_after=True):
     """
-    Supporte 1 ou plusieurs CV dans la même requête.
-    - Si un seul fichier est envoyé, conserve un format de réponse simple (compat).
-    - Si plusieurs fichiers sont envoyés, renvoie 'results': [ ... ].
-    Champs optionnels:
-      - title
-      - required_skills (CSV)
-      - structure=1  -> ajoute un champ 'structured' par CV (appel HF)
+    Supporte 1 ou plusieurs CV.
+    Flags:
+      - structure=1 -> ajoute 'structured' par CV
+      - analyze=1   -> génère 'analysis' (Top-K) en utilisant la fiche de poste postée
+    Champs fiche de poste attendus (POST):
+      - title, company, location, experience_required, description, required_skills
+      (+ alias: job_location/location, experience, job_description/description, skills/required_skills)
+      - top_k, llm_insights, llm_on_top_n (optionnels)
     """
     if request.method != "POST":
         return JsonResponse({"error": "POST uniquement"}, status=405)
@@ -63,8 +68,11 @@ def parse_uploaded_cv(request, *, delete_after=True):
     raw_req_skills = request.POST.get("required_skills", "") or ""
     required_skills = [s.strip() for s in raw_req_skills.split(",") if s.strip()]
 
-    # Flag: activer la structuration IA ?
+    # Flags
     want_structure = (request.GET.get("structure") == "1") or (request.POST.get("structure") == "1")
+    want_analyze   = (request.GET.get("analyze") == "1") or (request.POST.get("analyze") == "1")
+    if want_analyze:  # l’analyse nécessite la structuration
+        want_structure = True
 
     results = []
     for original_name, uploaded in files:
@@ -73,7 +81,7 @@ def parse_uploaded_cv(request, *, delete_after=True):
             parsed = parse_cv(tmp_path, job_title=job_title, required_skills=required_skills)
             results.append({
                 "original_name": original_name,
-                "tmp_path": tmp_path,     # informatif; peut être supprimé plus bas si delete_after=True
+                "tmp_path": tmp_path,
                 "parsed": parsed,
                 "status": "ok",
             })
@@ -93,8 +101,8 @@ def parse_uploaded_cv(request, *, delete_after=True):
                     pass
 
     # --- Réponses ---
-    if len(results) == 1:
-        # Compat: format "simple"
+    # compat: 1 seul fichier -> format simple
+    if len(results) == 1 and not want_analyze:
         r = results[0]
         if r["status"] != "ok":
             return JsonResponse({"error": r.get("error", "Erreur inconnue"), "tmp_path": r["tmp_path"]}, status=500)
@@ -107,29 +115,50 @@ def parse_uploaded_cv(request, *, delete_after=True):
                 if structured_batch.get("results"):
                     payload["structured"] = structured_batch["results"][0].get("structured", {})
             except Exception as e:
-                # On ne casse pas la réponse si la structuration échoue
                 payload["structured_error"] = str(e)
 
         return JsonResponse(payload, status=200)
 
-    # Cas multi-fichiers
+    # multi-fichiers (ou analyse demandée)
     response = {"count": len(results), "results": results}
 
     if want_structure:
         try:
             structured_batch = structure_batch_from_extraction(response)
-            # merge 'structured' par index (mêmes ordres)
             for i, s in enumerate(structured_batch.get("results", [])):
                 try:
                     results[i]["structured"] = s.get("structured", {})
-                    # en cas d'erreur par item, on peut propager l'erreur sans casser le lot
                     if s.get("status") == "error":
                         results[i]["structured_status"] = "error"
                         results[i]["structured_error"] = s.get("error", "")
                 except Exception:
                     pass
         except Exception as e:
-            # Si l'appel HF complet échoue, on ajoute juste un champ global d'erreur
             response["structured_error"] = str(e)
 
-    return JsonResponse({"count": len(results), "results": results}, status=200)
+    # --- ANALYSE & TOP-K (facultatif) ---
+    if want_analyze:
+        # on tolère plusieurs noms de champs côté front
+        job_profile = {
+            "title": request.POST.get("title", "") or "",
+            "company": request.POST.get("company", "") or "",
+            "location": request.POST.get("job_location", "") or request.POST.get("location", "") or "",
+            "experience_required": request.POST.get("experience_required", "") or request.POST.get("experience", "") or "",
+            "description": request.POST.get("job_description", "") or request.POST.get("description", "") or "",
+            "required_skills": _split_skills(
+                request.POST.get("required_skills", "") or request.POST.get("skills", "")
+            ),
+        }
+        try:
+            analysis = analyze_candidates_from_parse_results(
+                job_profile,
+                {"results": results},
+                top_k=int(request.POST.get("top_k", 10) or 10),
+                use_llm_insights=(request.POST.get("llm_insights", "1") != "0"),
+                llm_on_top_n=int(request.POST.get("llm_on_top_n", 10) or 10),
+            )
+            response["analysis"] = analysis
+        except Exception as e:
+            response["analysis_error"] = str(e)
+
+    return JsonResponse(response, status=200)
