@@ -49,6 +49,9 @@ export default function Navigation() {
                   >
                     Dashboard
                   </Link>
+                  <span className="text-gray-700 dark:text-gray-300 px-3 py-2 rounded-md text-sm font-medium">
+                    {user?.email}
+                  </span>
                   <button
                     onClick={logout}
                     className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"

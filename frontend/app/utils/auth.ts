@@ -76,8 +76,6 @@ export const authService = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Nous n'avons pas encore de token d'administrateur, donc cette opération pourrait échouer
-          // mais nous adaptons le frontend pour utiliser la route existante
         },
         body: JSON.stringify(payload),
       });

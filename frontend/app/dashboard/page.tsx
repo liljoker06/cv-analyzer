@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import StatsCard from '../components/dashboard/StatsCard';
@@ -20,6 +21,19 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{userId: string, open: boolean}>({ userId: '', open: false });
+  const router = useRouter();
+  
+  // Vérification d'authentification côté client
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('cv_analyzer_token');
+      console.log("Dashboard page - token check:", token ? "Token exists" : "No token");
+      if (!token) {
+        console.log("No token found, redirecting from dashboard to login");
+        window.location.href = '/login';
+      }
+    }
+  }, []);
 
   // Chargement des utilisateurs
   const loadUsers = async () => {
@@ -99,27 +113,6 @@ export default function DashboardPage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <Header
-          showBackButton={false}
-          actions={
-            <div className="flex items-center space-x-4">
-              <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4 19h6v-2H4v2zM4 15h6v-2H4v2zM4 11h6V9H4v2zM4 7h6V5H4v2zM10 7h10V5H10v2zM10 11h10V9H10v2zM10 15h10v-2H10v2zM10 19h10v-2H10v2z" />
-                </svg>
-              </button>
-              <div className="relative">
-                <button className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                    JD
-                  </div>
-                  <span className="hidden md:block">Jean Dupont</span>
-                </button>
-              </div>
-            </div>
-          }
-        />
         
         {/* Boîte de dialogue de confirmation de suppression */}
         <DeleteConfirmation

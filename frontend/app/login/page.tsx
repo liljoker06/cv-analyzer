@@ -16,14 +16,17 @@ export default function LoginPage() {
     setError(null);
     
     try {
-      await authService.login({
+      // Utilisation de authService.login comme prévu
+      const userData = await authService.login({
         username: formData.email,
         password: formData.password,
       });
       
-      // redirection
-      router.push('/dashboard');
+      console.log("Login successful, user data:", userData);
+      window.location.href = '/dashboard';
+      
     } catch (err: any) {
+      console.error("Login error in page:", err);
       setError(err.message || 'Une erreur est survenue lors de la connexion');
       setLoading(false);
     }
