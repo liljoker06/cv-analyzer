@@ -1,0 +1,10 @@
+# Python virtual environment
+venv/
+
+#  tous les pycache
+__pycache__/
+core/__pycache__/
+cv_app/__pycache__/
+cv_app/migrations/__pycache__/
+cv_app/views/__pycache__/
+cv_app/models/__pycache__/
