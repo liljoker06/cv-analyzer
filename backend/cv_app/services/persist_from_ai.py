@@ -1,5 +1,5 @@
-# cv_app/services/persist_from_ai.py
 from __future__ import annotations
+
 import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -13,46 +13,39 @@ from cv_app.models.document import DocumentFile
 # ----------------- helpers -----------------
 
 _FR_MONTHS = {
-    "janv":1, "janvier":1, "févr":2, "fevr":2, "février":2, "mars":3, "avr":4, "avril":4,
-    "mai":5, "juin":6, "juil":7, "juillet":7, "août":8, "aout":8, "sept":9, "septembre":9,
-    "oct":10, "octobre":10, "nov":11, "novembre":11, "déc":12, "dec":12, "décembre":12
+    "janv":1, "janvier":1, "févr":2, "fevr":2, "février":2,
+    "mars":3, "avr":4, "avril":4, "mai":5, "juin":6, "juil":7, "juillet":7,
+    "août":8, "aout":8, "sept":9, "septembre":9, "oct":10, "octobre":10,
+    "nov":11, "novembre":11, "déc":12, "dec":12, "décembre":12
 }
 _EN_MONTHS = {
     "jan":1,"january":1,"feb":2,"february":2,"mar":3,"march":3,"apr":4,"april":4,
     "may":5,"jun":6,"june":6,"jul":7,"july":7,"aug":8,"august":8,"sep":9,"sept":9,"september":9,
     "oct":10,"october":10,"nov":11,"november":11,"dec":12,"december":12
 }
+
 def _parse_month_year(s: str) -> Optional[datetime]:
-    """
-    Parse très tolérant: 'Septembre 2022', 'sept. 2022', 'janv. 2019', 'April 2019', '2019-06', '2019'...
-    Renvoie un datetime au 1er du mois, sinon None.
-    """
-    if not s: 
+    if not s:
         return None
-    ss = s.strip().lower().replace("é","e").replace("è","e").replace("ê","e").replace(".", "")
-    # ex: "septembre 2022"
+    ss = (s or "").strip().lower().replace("é","e").replace("è","e").replace("ê","e").replace(".", "")
     parts = ss.split()
     y = None; m = None
     for p in parts:
-        # année ?
         if p.isdigit() and len(p) == 4:
             y = int(p); continue
-        # mois FR/EN ?
-        if p in _FR_MONTHS: m = _FR_MONTHS[p]
-        elif p in _EN_MONTHS: m = _EN_MONTHS[p]
+        if p in _FR_MONTHS:
+            m = _FR_MONTHS[p]
+        elif p in _EN_MONTHS:
+            m = _EN_MONTHS[p]
         else:
-            # formats type "2019-06"
             if "-" in p:
                 t = p.split("-")
                 if len(t)==2 and t[0].isdigit() and t[1].isdigit():
                     y = int(t[0]); m = int(t[1]); break
     if y and not m: m = 1
-    if y: 
-        try: 
-            return datetime(y, m or 1, 1)
-        except Exception:
-            return None
-    # année seule genre "2019"
+    if y:
+        try: return datetime(y, m or 1, 1)
+        except Exception: return None
     if ss.isdigit() and len(ss)==4:
         try: return datetime(int(ss), 1, 1)
         except Exception: return None
@@ -64,16 +57,58 @@ def _norm_email(s: str) -> str:
 def _safe_join(xs: List[str]) -> str:
     return ", ".join([x for x in xs if isinstance(x, str) and x.strip()])
 
+def _split_fullname(s: str) -> tuple[str, str]:
+    s = (s or "").strip()
+    if not s: return "", ""
+    parts = [p for p in s.split() if p]
+    if len(parts) == 1:
+        return parts[0], ""
+    return parts[0], parts[-1]
+
+def _scale_overall(score_any: Any) -> float:
+    """
+    Rend un score /10, en acceptant:
+     - déjà /10 (ex: 8.0)  -> 8.0
+     - /100  (ex: 58.7)    -> 5.87
+    """
+    try:
+        s = float(score_any)
+    except Exception:
+        return 0.0
+    if s <= 10.0:
+        return round(max(0.0, min(10.0, s)), 2)
+    # assume pourcentage
+    return round(max(0.0, min(100.0, s)) / 10.0, 2)
+
+def _to_subscore_10(x: Any) -> float:
+    """convertit un ratio (0..1) vers une note /10."""
+    try:
+        r = float(x)
+    except Exception:
+        return 0.0
+    return round(max(0.0, min(1.0, r)) * 10.0, 2)
+
+
+def _education_score(job: JobPosting, struct: dict) -> float:
+    required = (job.experience_required or "").lower()
+    if not required:
+        return 0.5
+    for edu in struct.get("education", []):
+        degree = (edu.get("degree") or "").lower()
+        if required in degree:
+            return 1.0
+    return 0.0
+
 # ----------------- upserts -----------------
 
 def upsert_job(job_profile: Dict[str, Any]) -> JobPosting:
-    title   = (job_profile.get("title") or "").strip()
+    title = (job_profile.get("title") or "").strip()
     company = (job_profile.get("company") or "").strip()
-    loc     = (job_profile.get("location") or "").strip()
+    loc = (job_profile.get("location") or "").strip()
     exp_req = (job_profile.get("experience_required") or "").strip()
-    req_sk  = job_profile.get("required_skills") or []
-    if not isinstance(req_sk, list): req_sk = []
-
+    req_sk = job_profile.get("required_skills") or []
+    if not isinstance(req_sk, list):
+        req_sk = []
     job = JobPosting.objects(
         title=title, company=company, location=loc
     ).modify(
@@ -83,10 +118,23 @@ def upsert_job(job_profile: Dict[str, Any]) -> JobPosting:
     )
     return job
 
-def upsert_candidate(structured: Dict[str, Any], applied_position: str) -> Candidate:
-    email = _norm_email(structured.get("email"))
-    first = (structured.get("first_name") or "").strip() or (structured.get("full_name") or "").strip().split(" ")[0] if structured.get("full_name") else ""
-    last  = (structured.get("last_name") or "").strip()  or (structured.get("full_name") or "").strip().split(" ")[-1] if structured.get("full_name") else ""
+def upsert_candidate(structured: Dict[str, Any], applied_position: str, contact_fallback: Dict[str, Any] | None = None) -> Candidate:
+    contact_fallback = contact_fallback or {}
+
+    email = _norm_email(structured.get("email") or contact_fallback.get("email"))
+    # nom/prénom
+    first = (structured.get("first_name") or "").strip()
+    last  = (structured.get("last_name") or "").strip()
+
+    if (not first or not last) and contact_fallback.get("full_name"):
+        f, l = _split_fullname(contact_fallback["full_name"])
+        first = first or f
+        last  = last or l
+
+    if not first and structured.get("full_name"):
+        f, l = _split_fullname(structured["full_name"])
+        first = first or f
+        last  = last or l
 
     if not first: first = "N/A"
     if not last:  last  = "N/A"
@@ -94,23 +142,23 @@ def upsert_candidate(structured: Dict[str, Any], applied_position: str) -> Candi
     cand = Candidate.objects(email_lc=email).first() if email else None
     if not cand:
         cand = Candidate(
-            first_name=first, last_name=last,
+            first_name=first,
+            last_name=last,
             email=structured.get("email") or email or f"unknown_{int(datetime.utcnow().timestamp())}@local",
-            phone=structured.get("phone") or "",
+            phone=structured.get("phone") or contact_fallback.get("phone") or "",
             applied_position=applied_position,
             skills=[str(s).strip().lower() for s in (structured.get("skills") or []) if s]
         )
     else:
         # mise à jour douce
         cand.first_name = cand.first_name or first
-        cand.last_name  = cand.last_name  or last
-        cand.phone      = cand.phone or (structured.get("phone") or "")
+        cand.last_name  = cand.last_name or last
+        cand.phone = cand.phone or (structured.get("phone") or contact_fallback.get("phone") or "")
         cand.applied_position = cand.applied_position or applied_position
-        # merge skills
         merged = {*(cand.skills or []), *[str(s).strip().lower() for s in (structured.get("skills") or []) if s]}
         cand.skills = sorted(merged)
 
-    # expériences (facultatif: ajoute seulement si le candidat n'en a pas déjà)
+    # expériences (on ajoute si vide)
     if not cand.experiences and isinstance(structured.get("experiences"), list):
         exps: List[Experience] = []
         for e in structured["experiences"][:5]:
@@ -123,13 +171,10 @@ def upsert_candidate(structured: Dict[str, Any], applied_position: str) -> Candi
             ))
         cand.experiences = exps
 
-    # déclenchera .clean() pour alimenter email_lc
     try:
         cand.save()
     except NotUniqueError:
-        # si course: on relis et on met à jour
         cand = Candidate.objects(email_lc=email).first()
-
     return cand
 
 def attach_cv_if_exists(candidate: Candidate, original_name: str, tmp_path: str) -> Optional[DocumentFile]:
@@ -145,23 +190,26 @@ def attach_cv_if_exists(candidate: Candidate, original_name: str, tmp_path: str)
     return None
 
 def upsert_analysis(job: JobPosting, candidate: Candidate, ares: Dict[str, Any]) -> Analysis:
-    # ares = un item de payload["analysis"]["results"][i]
-    score_pct = float(ares.get("score", 0.0))          # ex: 58.7
-    br = ares.get("breakdown") or {}
-    w  = (br.get("weights") or {})
-    # Normalisation (0..10)
-    overall = round(score_pct / 10.0, 2)
+    """
+    ares = un item de payload["analysis"]["results"][i]
+    - 'score' peut être soit /10 (8.0), soit /100 (58.7)
+    - breakdown: skills/exp/desc/loc sont des ratios 0..1 -> convertis en /10
+    - strengths/weaknesses: préférer insights.strengths/gaps, sinon matched/missing
+    """
+    score_any = ares.get("score", 0.0)
+    overall = _scale_overall(score_any)
 
-    skills_s  = round(10.0 * float(br.get("skills", 0.0)), 2)
-    exp_s     = round(10.0 * float(br.get("exp", 0.0)), 2)
-    edu_s     = 0.0
-    comm_s    = round(10.0 * float(br.get("desc", 0.0)), 2)  # on assimile "desc" à comm/pertinence de description
-    culture_s = round(10.0 * float(br.get("loc", 0.0)), 2)   # proxy localisation
+    br = ares.get("breakdown") or {}
+    skills_s = _to_subscore_10(br.get("skills", 0.0))
+    exp_s    = _to_subscore_10(br.get("exp", 0.0))
+    comm_s   = _to_subscore_10(br.get("desc", 0.0))  # proxy pertinence
+    culture_s= _to_subscore_10(br.get("loc", 0.0))   # proxy localisation
+    edu_s = _to_subscore_10(_education_score(job, ares.get("structured", {})))
 
     ins = ares.get("insights") or {}
-    strengths = _safe_join(ins.get("strengths") or [])
-    gaps      = _safe_join(ins.get("gaps") or [])
-    verdict   = (ins.get("verdict") or "").strip()
+    strengths = _safe_join(ins.get("strengths") or ares.get("matched_skills") or [])
+    weaknesses = _safe_join(ins.get("gaps") or ares.get("missing_skills") or [])
+    verdict = (ins.get("verdict") or "").strip()
 
     ana = Analysis.objects(job=job, candidate=candidate).modify(
         upsert=True, new=True,
@@ -169,10 +217,11 @@ def upsert_analysis(job: JobPosting, candidate: Candidate, ares: Dict[str, Any])
         set__skills_score=skills_s,
         set__experience_score=exp_s,
         set__education_score=edu_s,
+        set__location_score=culture_s,  
         set__communication_score=comm_s,
         set__culture_score=culture_s,
         set__strengths=strengths,
-        set__weaknesses=gaps,
+        set__weaknesses=weaknesses,
         set__recommendations=verdict,
         set__status="pending"
     )
@@ -182,8 +231,12 @@ def upsert_analysis(job: JobPosting, candidate: Candidate, ares: Dict[str, Any])
 
 def persist_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    payload = la réponse JSON que tu as montrée.
-    Renvoie les IDs persistés.
+    payload = la réponse JSON renvoyée par ta vue (celle que tu as collée).
+    On persiste:
+      - JobPosting (payload.analysis.job_profile)
+      - Chaque candidat (via analysis.results[*].structured/contact avec fallback)
+      - Le CV (si tmp_path existe encore)
+      - Analysis (scores + strengths/weaknesses/verdict)
     """
     saved: List[Dict[str, Any]] = []
 
@@ -191,32 +244,36 @@ def persist_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     job_profile = (payload.get("analysis") or {}).get("job_profile") or {}
     job = upsert_job(job_profile)
 
-    # 2) Map rapide original_name -> tmp_path (pour GridFS)
-    filemap = {}
+    # 2) Map rapide original_name -> (tmp_path, structured depuis results[*] s'il existe)
+    filemap: Dict[str, Dict[str, Any]] = {}
     for r in payload.get("results", []):
-        filemap[r.get("original_name")] = r.get("tmp_path")
+        filemap[r.get("original_name")] = {
+            "tmp_path": r.get("tmp_path"),
+            "structured": (r.get("structured") or {})  # fallback utile si ares.structured manque
+        }
 
     # 3) Parcours des résultats d'analyse
     for ares in (payload.get("analysis") or {}).get("results", []):
-        structured = ares.get("structured") or {}
-        contact    = ares.get("contact")    or {}
+        orig = ares.get("original_name") or ""
+        # structured prioritaire = celui dans 'analysis', sinon fallback 'results'
+        structured = (ares.get("structured") or {}) or filemap.get(orig, {}).get("structured") or {}
+        contact = ares.get("contact") or {}
 
-        # fallback si email absent dans structured
+        # compléter les trous depuis contact
         if not structured.get("email"):
             structured["email"] = contact.get("email")
         if not structured.get("first_name") and contact.get("full_name"):
-            structured["first_name"] = contact["full_name"].split()[0]
+            f, _ = _split_fullname(contact["full_name"]); structured["first_name"] = f
         if not structured.get("last_name") and contact.get("full_name"):
-            structured["last_name"] = contact["full_name"].split()[-1]
+            _, l = _split_fullname(contact["full_name"]); structured["last_name"] = l
         if not structured.get("phone"):
             structured["phone"] = contact.get("phone")
 
         # 3.1 Candidate
-        cand = upsert_candidate(structured, applied_position=job.title)
+        cand = upsert_candidate(structured, applied_position=job.title, contact_fallback=contact)
 
         # 3.2 Attacher le CV si le fichier existe encore
-        orig = ares.get("original_name") or ""
-        tmp  = filemap.get(orig)
+        tmp = (filemap.get(orig) or {}).get("tmp_path")
         attach_cv_if_exists(cand, orig, tmp)
 
         # 3.3 Analysis
