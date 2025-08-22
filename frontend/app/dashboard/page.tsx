@@ -124,6 +124,12 @@ export default function DashboardPage() {
     { id: 3, candidateName: 'Sophie Bernard', position: 'UX Designer', score: 7.8, status: 'En cours', date: '2024-01-13' }
   ];
 
+  const recentAnalyses = [
+    { id: 1, title: 'Analyse CV - Marie Dubois', date: '2024-01-15', status: 'Terminée' },
+    { id: 2, title: 'Analyse CV - Pierre Martin', date: '2024-01-14', status: 'En cours' },
+    { id: 3, title: 'Analyse CV - Sophie Bernard', date: '2024-01-13', status: 'Terminée' }
+  ];
+
   const sidebarItems = [
     { id: 'overview', label: 'Vue d\'ensemble', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" /></svg> },
     { id: 'users', label: 'Gestion des Utilisateurs', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" /></svg> },
@@ -176,7 +182,7 @@ export default function DashboardPage() {
                 <StatsCard title="Score moyen" value={`${stats.averageScore}/10`} color="orange" icon={undefined} />
               </div>
 
-              {/* Applications */}
+              {/* Applications candidatures */}
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                 <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">Candidatures récentes</h3>
@@ -187,6 +193,19 @@ export default function DashboardPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Applications Analyses */}
+              {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white">Analyses récentes</h3>
+                </div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {recentAnalyses.map(analysis => (
+                    // <AnalysisCard key={analysis.id} analysis={analysis} />
+                  ))}
+                </div>
+              </div> */}
+
             </div>
           )}
 

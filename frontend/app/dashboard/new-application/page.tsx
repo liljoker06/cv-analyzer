@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { applicationsService } from '../../utils/applications-api';
 
 export default function NewApplicationPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     candidateName: '',
     email: '',
@@ -19,19 +22,51 @@ export default function NewApplicationPage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('cv_analyzer_token');
+      if (!token) {
+        window.location.href = '/login';
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
+    setSuccess(null);
     
-    // TODO: Implement form submission logic
-    console.log('Submitting application:', formData);
-    
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const applicationData = {
+        candidateName: formData.candidateName,
+        email: formData.email,
+        phone: formData.phone,
+        position: formData.position,
+        company: formData.company,
+        experience: formData.experience,
+        education: formData.education,
+        skills: formData.skills,
+        coverLetter: formData.coverLetter
+      };
+      
+      const result = await applicationsService.createApplication(applicationData);
+      
+      console.log('Candidature créée avec succès:', result);
+      
+      setTimeout(() => {
+        router.push('/dashboard?tab=applications');
+      }, 2000);
+      
+    } catch (err: any) {
+      console.error('Erreur lors de la soumission:', err);
+      setError(err.message || 'Une erreur est survenue lors de la création de la candidature');
+    } finally {
       setIsSubmitting(false);
-      // TODO: Redirect to dashboard or show success message
-    }, 2000);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -73,6 +108,19 @@ export default function NewApplicationPage() {
 
       {/* Form */}
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Messages de succès ou d'erreur */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+            {error}
+          </div>
+        )}
+        
+        {success && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
+            {success}
+          </div>
+        )}
+        
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
           <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-lg font-medium text-gray-900 dark:text-white">Informations du candidat</h2>

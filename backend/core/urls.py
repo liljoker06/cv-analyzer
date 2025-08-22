@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('cv_app.routes.user_routes')),
     path('api/', include('cv_app.routes.extract_routes')),
+    path('api/', include('cv_app.routes.analysis_routes')),
 ]
