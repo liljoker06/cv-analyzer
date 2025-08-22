@@ -58,8 +58,7 @@ export async function DELETE(
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL
     
-    // Faire la requête vers l'API backend
-    const response = await fetch(`${apiUrl}/users/${userId}/`, {
+    const response = await fetch(`${apiUrl}/users/${userId}/delete/`, {
       method: 'DELETE',
       headers: {
         'Authorization': authHeader
