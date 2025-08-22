@@ -4,7 +4,7 @@ import Button from '../ui/Button';
 
 interface ApplicationCardProps {
   application: {
-    id: number;
+    id: number | string;
     candidateName: string;
     position: string;
     score: number;
@@ -12,9 +12,9 @@ interface ApplicationCardProps {
     date: string;
     email?: string;
   };
-  onView?: (id: number) => void;
-  onAnalyze?: (id: number) => void;
-  onDelete?: (id: number) => void;
+  onView?: (id: number | string) => void;
+  onAnalyze?: (id: number | string) => void;
+  onDelete?: (id: number | string) => void;
 }
 
 export default function ApplicationCard({

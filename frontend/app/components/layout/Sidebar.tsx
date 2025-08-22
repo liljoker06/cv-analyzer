@@ -6,6 +6,7 @@ interface SidebarItem {
   icon: React.ReactNode;
   href?: string;
   onClick?: () => void;
+  isExternalLink?: boolean;
 }
 
 interface SidebarProps {
@@ -60,28 +61,51 @@ export default function Sidebar({
 
         <nav className="mt-6 px-3">
           <div className="space-y-1">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  if (item.onClick) {
-                    item.onClick();
-                  } else if (onItemClick) {
-                    onItemClick(item.id);
-                  }
-                }}
-                className={`
-                  w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
-                  ${activeItem === item.id
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                  }
-                `}
-              >
-                <span className="mr-3 h-5 w-5">{item.icon}</span>
-                {item.label}
-              </button>
-            ))}
+            {items.map((item) => {
+              // Si c'est uune URL et doit être traité comme un lien externe
+              if (item.href && item.isExternalLink) {
+                return (
+                  <a
+                    key={item.id}
+                    href={item.href}
+                    className={`
+                      w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
+                      ${activeItem === item.id
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                      }
+                    `}
+                  >
+                    <span className="mr-3 h-5 w-5">{item.icon}</span>
+                    {item.label}
+                  </a>
+                );
+              }
+              
+              // Sinon, bouton standard
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    if (item.onClick) {
+                      item.onClick();
+                    } else if (onItemClick) {
+                      onItemClick(item.id);
+                    }
+                  }}
+                  className={`
+                    w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors
+                    ${activeItem === item.id
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                      : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }
+                  `}
+                >
+                  <span className="mr-3 h-5 w-5">{item.icon}</span>
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </nav>
       </aside>

@@ -14,11 +14,14 @@ import Badge from '../components/ui/Badge';
 import DeleteConfirmation from '../components/ui/DeleteConfirmation';
 import { usersService, User } from '../utils/users-api';
 import { jobsService, StatsData } from '../utils/jobs-api';
+import { analysisService, AnalysisJob, Candidate } from '../utils/analysis-api';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
+  const [analyses, setAnalyses] = useState<AnalysisJob[]>([]);
+  const [applications, setApplications] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{userId: string, open: boolean}>({ userId: '', open: false });
@@ -93,9 +96,50 @@ export default function DashboardPage() {
     }
   };
 
+  // Chargement des analyses
+  const loadAnalyses = async () => {
+    try {
+      setLoading(true);
+      const data = await analysisService.getAllAnalyses();
+      setAnalyses(data);
+      
+      // Extraire toutes les candidatures (flatten)
+      const allApplications: Candidate[] = [];
+      data.forEach(analysis => {
+        if (analysis.candidates && analysis.candidates.length > 0) {
+          allApplications.push(...analysis.candidates);
+        }
+      });
+      
+      // Trier par score
+      const sortedApplications = allApplications.sort((a, b) => b.score - a.score);
+      setApplications(sortedApplications);
+      
+      // Mettre à jour les statistiques
+      setStats(prev => ({
+        ...prev,
+        totalApplications: allApplications.length,
+        averageScore: allApplications.length > 0 
+          ? parseFloat((allApplications.reduce((sum, app) => sum + app.score, 0) / allApplications.length).toFixed(1))
+          : 0
+      }));
+      
+      setError(null);
+    } catch (err) {
+      console.error('Erreur lors du chargement des analyses:', err);
+      setError('Impossible de charger les analyses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'users') {
       loadUsers();
+    }
+    
+    if (activeTab === 'overview' || activeTab === 'applications') {
+      loadAnalyses();
     }
     
     if (activeTab === 'overview') {
@@ -117,24 +161,27 @@ export default function DashboardPage() {
     }
   };
 
-  // Mock data pour les applications récentes
-  const recentApplications = [
-    { id: 1, candidateName: 'Marie Dubois', position: 'Développeur Full Stack', score: 8.5, status: 'En attente', date: '2024-01-15' },
-    { id: 2, candidateName: 'Pierre Martin', position: 'Data Scientist', score: 9.2, status: 'Approuvé', date: '2024-01-14' },
-    { id: 3, candidateName: 'Sophie Bernard', position: 'UX Designer', score: 7.8, status: 'En cours', date: '2024-01-13' }
-  ];
-
-  const recentAnalyses = [
-    { id: 1, title: 'Analyse CV - Marie Dubois', date: '2024-01-15', status: 'Terminée' },
-    { id: 2, title: 'Analyse CV - Pierre Martin', date: '2024-01-14', status: 'En cours' },
-    { id: 3, title: 'Analyse CV - Sophie Bernard', date: '2024-01-13', status: 'Terminée' }
-  ];
+  // Convertir les candidatures pour l'affichage
+  const formatApplicationsForDisplay = () => {
+    return applications.map((candidate) => ({
+      id: candidate.id,
+      candidateName: candidate.name,
+      position: candidate.strengths || 'Non spécifié',
+      score: candidate.score,
+      status: candidate.status === 'pending' ? 'En attente' : 
+              candidate.status === 'approved' ? 'Approuvé' : 
+              candidate.status === 'rejected' ? 'Refusé' : 'En cours',
+      date: new Date().toISOString().split('T')[0], // Date actuelle
+      email: candidate.email
+    }));
+  };
 
   const sidebarItems = [
     { id: 'overview', label: 'Vue d\'ensemble', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5a2 2 0 012-2h4a2 2 0 012 2v6H8V5z" /></svg> },
     { id: 'users', label: 'Gestion des Utilisateurs', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" /></svg> },
     { id: 'applications', label: 'Candidatures', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
-    { id: 'analytics', label: 'Analytics', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> }
+    { id: 'analytics', label: 'Analytics', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
+    { id: 'analysis-results', label: 'Résultats d\'analyse', icon: <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>, href: '/dashboard/analysis-results', isExternalLink: true },
   ];
 
   const applicationColumns = [
@@ -188,9 +235,31 @@ export default function DashboardPage() {
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">Candidatures récentes</h3>
                 </div>
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {recentApplications.map(app => (
-                    <ApplicationCard key={app.id} application={app} />
-                  ))}
+                  {loading ? (
+                    <div className="col-span-3 flex justify-center py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    </div>
+                  ) : applications.length > 0 ? (
+                    applications.slice(0, 6).map((candidate, index) => (
+                      <ApplicationCard 
+                        key={candidate.id || index} 
+                        application={{
+                          id: candidate.id,
+                          candidateName: candidate.name,
+                          position: candidate.strengths || 'Non spécifié',
+                          score: candidate.score,
+                          status: candidate.status === 'pending' ? 'En attente' : 
+                                  candidate.status === 'approved' ? 'Approuvé' : 
+                                  candidate.status === 'rejected' ? 'Refusé' : 'En cours',
+                          date: new Date().toISOString().split('T')[0] // Date actuelle
+                        }} 
+                      />
+                    ))
+                  ) : (
+                    <div className="col-span-3 text-center py-4 text-gray-500 dark:text-gray-400">
+                      Aucune candidature trouvée
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -268,7 +337,25 @@ export default function DashboardPage() {
                   <Link href="/dashboard/new-application"><Button variant="outline">Ajouter candidature</Button></Link>
                 </div>
               </div>
-              <DataTable columns={applicationColumns} data={recentApplications} />
+              
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                </div>
+              ) : error ? (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 mb-6">
+                  {error}
+                </div>
+              ) : applications.length === 0 ? (
+                <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 dark:text-gray-300">Aucune candidature trouvée</p>
+                </div>
+              ) : (
+                <DataTable 
+                  columns={applicationColumns} 
+                  data={formatApplicationsForDisplay()} 
+                />
+              )}
             </div>
           )}
 
