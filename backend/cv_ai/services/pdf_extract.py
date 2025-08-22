@@ -10,7 +10,7 @@ except Exception:
     pdfplumber = None
 
 try:
-    import PyPDF2  # fallback
+    import PyPDF2  
 except Exception:
     PyPDF2 = None
 

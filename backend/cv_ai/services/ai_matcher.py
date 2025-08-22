@@ -1,4 +1,3 @@
-# cv_ai/services/ai_matcher.py
 from __future__ import annotations
 import os, json, re, hashlib, unicodedata
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,10 +18,14 @@ HF_MODEL = os.getenv("HF_MODEL") or (getattr(settings, "HF_MODEL", "mistralai/Mi
 HF_MAX_NEW_TOKENS = int(os.getenv("HF_MAX_NEW_TOKENS") or (getattr(settings, "HF_MAX_NEW_TOKENS", 600) if settings else 600))
 
 # --- pondérations (surchageables par .env) ---
+W_EDU    = float(os.getenv("MATCHER_EDU_WEIGHT", "0.1"))  
 W_SKILLS = float(os.getenv("MATCHER_SKILL_WEIGHT", "0.5"))
 W_DESC   = float(os.getenv("MATCHER_DESC_WEIGHT", "0.3"))
 W_EXP    = float(os.getenv("MATCHER_EXP_WEIGHT", "0.15"))
 W_LOC    = float(os.getenv("MATCHER_LOC_WEIGHT", "0.05"))
+
+
+
 
 # ------------- utilitaires texte -------------
 def _strip_accents(s: str) -> str:
@@ -216,6 +219,22 @@ def _location_score(job_loc: str, cv_loc: str) -> float:
     c = set(_tokens(cv_loc))
     return 1.0 if j & c else 0.0
 
+def _education_score(job: Dict[str, Any], struct: Dict[str, Any]) -> float:
+    """
+    Compare les diplômes du candidat avec ceux attendus dans le job.
+    - Si le job ne précise rien : score neutre 0.5
+    - Si le diplôme requis est trouvé dans le CV : 1.0
+    - Sinon : 0.0
+    """
+    required = (job.get("required_degree") or job.get("education_required") or "").lower()
+    if not required:
+        return 0.5
+    for edu in struct.get("education", []):
+        degree = (edu.get("degree") or "").lower()
+        if required in degree:
+            return 1.0
+    return 0.0
+
 def score_one_candidate(
     job: Dict[str, Any],
     struct: Dict[str, Any],
@@ -245,8 +264,10 @@ def score_one_candidate(
     # 4) localisation
     loc_score = _location_score(job.get("location",""), struct.get("location",""))
 
+    edu_score = _education_score(job, struct)
+
     # global
-    total = (W_SKILLS*skill_score + W_DESC*desc_score + W_EXP*exp_score + W_LOC*loc_score)
+    total = (W_SKILLS*skill_score + W_DESC*desc_score + W_EXP*exp_score + W_LOC*loc_score + W_EDU*edu_score)
     score100 = round(100*total, 1)
 
     return {
@@ -256,6 +277,7 @@ def score_one_candidate(
             "desc": round(desc_score, 3),
             "exp": round(exp_score, 3),
             "loc": round(loc_score, 3),
+            "edu": round(edu_score, 3),
             "weights": {"skills": W_SKILLS, "desc": W_DESC, "exp": W_EXP, "loc": W_LOC}
         },
         "matched_skills": matched_skills[:20],
@@ -321,6 +343,7 @@ def analyze_candidates(
             "company": job_profile.get("company",""),
             "location": job_profile.get("location",""),
             "experience_required": job_profile.get("experience_required",""),
+            "description": job_profile.get("description",""), 
             "required_skills": job_profile.get("required_skills",[]),
         },
         "results": out_list[:top_k]

@@ -1,4 +1,3 @@
-# cv_ai/services/ai_structure.py
 from __future__ import annotations
 import os, json, re
 from typing import Any, Dict, List, Union

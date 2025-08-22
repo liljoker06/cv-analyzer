@@ -10,7 +10,7 @@ from django.views.decorators.csrf import csrf_exempt
 from cv_ai.services.ai_cv_parser import parse_cv
 from cv_ai.services.ai_structure import structure_batch_from_extraction
 from cv_ai.services.ai_matcher import analyze_candidates_from_parse_results
-from cv_app.services.persist_from_ai import persist_from_payload  # <-- persistance
+from cv_app.services.persist_from_ai import persist_from_payload  
 
 TEMP_SUBDIR = "cv_analyzer_uploads"
 
