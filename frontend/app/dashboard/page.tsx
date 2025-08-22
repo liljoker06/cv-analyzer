@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '../components/layout/Header';
 import Sidebar from '../components/layout/Sidebar';
 import StatsCard from '../components/dashboard/StatsCard';
@@ -10,29 +11,117 @@ import ApplicationCard from '../components/dashboard/ApplicationCard';
 import UserCard from '../components/dashboard/UserCard';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
+import DeleteConfirmation from '../components/ui/DeleteConfirmation';
+import { usersService, User } from '../utils/users-api';
+import { jobsService, StatsData } from '../utils/jobs-api';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Mock data
-  const stats = {
-    totalCandidates: 1247,
-    totalRecruiters: 89,
-    totalApplications: 3421,
-    averageScore: 7.8
-  }; 
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{userId: string, open: boolean}>({ userId: '', open: false });
+  const [stats, setStats] = useState<StatsData>({
+    totalAdmins: 0,
+    totalRecruiters: 0,
+    totalApplications: 0,
+    averageScore: 0
+  });
+  const router = useRouter();
   
+  // Vérification d'authentification côté client
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('cv_analyzer_token');
+      console.log("Dashboard page - token check:", token ? "Token exists" : "No token");
+      if (!token) {
+        console.log("No token found, redirecting from dashboard to login");
+        window.location.href = '/login';
+      }
+    }
+  }, []);
+
+  // Chargement des utilisateurs
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await usersService.getAllUsers();
+      setUsers(data);
+      setError(null);
+    } catch (err) {
+      console.error('Erreur lors du chargement des utilisateurs:', err);
+      setError('Impossible de charger les utilisateurs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Compte les utilisateurs par rôle (recruteurs, administrateurs)
+  const countUsersByRole = (usersList: User[], role: string): number => {
+    return usersList.filter(user => user.role === role).length;
+  };
+
+  // statistiques et utilisateurs
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      
+      const allUsers = await usersService.getAllUsers();
+      
+      const recruitersCount = countUsersByRole(allUsers, 'recruiter');
+      const adminsCount = countUsersByRole(allUsers, 'admin');
+      
+      setStats(prev => ({
+        ...prev,
+        totalRecruiters: recruitersCount,
+        totalAdmins: adminsCount
+      }));
+
+      setError(null);
+    } catch (err) {
+      console.error('Erreur lors du chargement des statistiques:', err);
+      setStats({
+        totalAdmins: 8,
+        totalRecruiters: 0,
+        totalApplications: 3421,
+        averageScore: 7.8
+      });
+      
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      loadUsers();
+    }
+    
+    if (activeTab === 'overview') {
+      loadStats();
+    }
+  }, [activeTab]);
+
+  // Fonction pour gérer la suppression d'un utilisateur
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      setLoading(true);
+      await usersService.deleteUser(userId);
+      await loadUsers();
+      setDeleteConfirmation({ userId: '', open: false });
+    } catch (err) {
+      console.error('Erreur lors de la suppression de l\'utilisateur:', err);
+      setError('Impossible de supprimer l\'utilisateur');
+      setLoading(false);
+    }
+  };
+
+  // Mock data pour les applications récentes
   const recentApplications = [
     { id: 1, candidateName: 'Marie Dubois', position: 'Développeur Full Stack', score: 8.5, status: 'En attente', date: '2024-01-15' },
     { id: 2, candidateName: 'Pierre Martin', position: 'Data Scientist', score: 9.2, status: 'Approuvé', date: '2024-01-14' },
     { id: 3, candidateName: 'Sophie Bernard', position: 'UX Designer', score: 7.8, status: 'En cours', date: '2024-01-13' }
-  ];
-
-  const users = [
-    { id: 1, name: 'Jean Dupont', email: 'jean.dupont@email.com', role: 'admin', status: 'actif', lastLogin: '2024-01-15' },
-    { id: 2, name: 'Marie Martin', email: 'marie.martin@company.com', role: 'recruiter', status: 'actif', lastLogin: '2024-01-14' },
-    { id: 3, name: 'Pierre Durand', email: 'pierre.durand@email.com', role: 'candidate', status: 'inactif', lastLogin: '2024-01-10' }
   ];
 
   const sidebarItems = [
@@ -63,26 +152,14 @@ export default function DashboardPage() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <Header
-          showBackButton={false}
-          actions={
-            <div className="flex items-center space-x-4">
-              <button className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM4 19h6v-2H4v2zM4 15h6v-2H4v2zM4 11h6V9H4v2zM4 7h6V5H4v2zM10 7h10V5H10v2zM10 11h10V9H10v2zM10 15h10v-2H10v2zM10 19h10v-2H10v2z" />
-                </svg>
-              </button>
-              <div className="relative">
-                <button className="flex items-center space-x-2 text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white">
-                  <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                    JD
-                  </div>
-                  <span className="hidden md:block">Jean Dupont</span>
-                </button>
-              </div>
-            </div>
-          }
+        
+        {/* Boîte de dialogue de confirmation de suppression */}
+        <DeleteConfirmation
+          isOpen={deleteConfirmation.open}
+          title="Supprimer l'utilisateur"
+          message="Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible."
+          onConfirm={() => handleDeleteUser(deleteConfirmation.userId)}
+          onCancel={() => setDeleteConfirmation({ userId: '', open: false })}
         />
 
         {/* Page content */}
@@ -93,7 +170,7 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Vue d&apos;ensemble</h1>
               {/* Stats */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsCard title="Candidats" value={stats.totalCandidates} color="blue" icon={undefined} />
+                <StatsCard title="Administrateurs" value={stats.totalAdmins} color="blue" icon={undefined} />
                 <StatsCard title="Recruteurs" value={stats.totalRecruiters} color="green" icon={undefined} />
                 <StatsCard title="Candidatures" value={stats.totalApplications} color="purple" icon={undefined} />
                 <StatsCard title="Score moyen" value={`${stats.averageScore}/10`} color="orange" icon={undefined} />
@@ -122,9 +199,43 @@ export default function DashboardPage() {
                   <Button>Ajouter un utilisateur</Button>
                 </Link>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {users.map(user => <UserCard key={user.id} user={user} />)}
-              </div>
+              
+              {loading && (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                </div>
+              )}
+              
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
+                  {error}
+                </div>
+              )}
+              
+              {!loading && !error && users.length === 0 && (
+                <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm text-center">
+                  <p className="text-gray-600 dark:text-gray-300">Aucun utilisateur trouvé</p>
+                </div>
+              )}
+              
+              {!loading && !error && users.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {users.map(user => {
+                    const userWithRequiredProps = {
+                      ...user,
+                      name: user.name || user.email.split('@')[0],
+                      status: user.status || (user.is_active ? 'actif' : 'inactif')
+                    };
+                    
+                    return <UserCard 
+                      key={user.id} 
+                      user={userWithRequiredProps as User & { name: string, status: string }}
+                      onEdit={(id) => window.location.href = `/dashboard/edit-user/${id}`}
+                      onDelete={(id) => setDeleteConfirmation({ userId: id, open: true })}
+                    />;
+                  })}
+                </div>
+              )}
             </div>
           )}
 

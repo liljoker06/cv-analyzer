@@ -1,6 +1,6 @@
 "use client";
 
-import ContributorProfile from "../../components/ContributorProfile";
+import ContributorProfile from "../components/ContributorProfile";
 
 export default function ContactPage() {
   const contributors = [

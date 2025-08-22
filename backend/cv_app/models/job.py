@@ -1,18 +1,25 @@
-from mongoengine import Document, StringField, DateTimeField, ListField, ReferenceField
-from datetime import datetime, timezone
-from .user import User
+from mongoengine import Document, StringField, ListField, DateTimeField
+from datetime import datetime
 
 class JobPosting(Document):
-    title = StringField(required=True, max_length=150)
-    company = StringField(required=False, max_length=150)
-    location = StringField(required=False, max_length=150)
-    experience_required = StringField(required=False, max_length=50)
-    description = StringField(required=False)
+    title = StringField(required=True, max_length=200)
+    company = StringField(default="", max_length=200)
+    location = StringField(default="", max_length=200)
+    experience_required = StringField(default="", max_length=100)
+    description = StringField(default="")
     required_skills = ListField(StringField(), default=[])
-    created_by = ReferenceField(User, required=False)     
-    created_at = DateTimeField(default=lambda: datetime.now(timezone.utc))
+    created_at = DateTimeField(default=datetime.utcnow)
 
-    meta = {"collection": "jobs", "db_alias": "default"}
+    meta = {
+        "collection": "jobs",
+        "db_alias": "default",
+        "indexes": [
+            "title",
+            "company",
+            {"fields": ["title", "company", "location", "experience_required"]},
+        ],
+    }
 
     def __str__(self):
-        return f"{self.title} @ {self.company or 'N/A'}"
+        base = self.title or "Job"
+        return f"{base} @ {self.company}".strip()

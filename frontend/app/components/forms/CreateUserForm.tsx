@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
@@ -22,6 +22,13 @@ export default function CreateUserForm({ onSubmit, loading = false, userRole = '
     company: '',
     position: ''
   });
+  
+  useEffect(() => {
+    setFormData(prevData => ({
+      ...prevData,
+      role: userRole
+    }));
+  }, [userRole]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

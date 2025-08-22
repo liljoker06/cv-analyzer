@@ -1,22 +1,35 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LoginForm from '../components/forms/LoginForm';
+import { authService } from '../utils/auth';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogin = async (formData: { email: string; password: string; rememberMe: boolean }) => {
     setLoading(true);
-    // TODO: Implement login logic
-    console.log('Login attempt:', formData);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      // Utilisation de authService.login comme prévu
+      const userData = await authService.login({
+        username: formData.email,
+        password: formData.password,
+      });
+      
+      console.log("Login successful, user data:", userData);
+      window.location.href = '/dashboard';
+      
+    } catch (err: any) {
+      console.error("Login error in page:", err);
+      setError(err.message || 'Une erreur est survenue lors de la connexion');
       setLoading(false);
-      // TODO: Redirect to dashboard or show success message
-    }, 2000);
+    }
   };
 
   return (
@@ -37,6 +50,13 @@ export default function LoginPage() {
           </p>
         </div>
 
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
+        
         {/* Login Form Component */}
         <LoginForm onSubmit={handleLogin} loading={loading} />
 
