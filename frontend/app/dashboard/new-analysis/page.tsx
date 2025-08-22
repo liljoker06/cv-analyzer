@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '../../components/layout/Header';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
 export default function NewAnalysisPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     jobTitle: '',
     company: '',
@@ -37,14 +39,51 @@ export default function NewAnalysisPage() {
     }
 
     setIsAnalyzing(true);
-    // TODO: Implement analysis logic
     console.log('Starting analysis:', { formData, files });
     
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const formDataToSend = new FormData();
+
+      // texte
+      formDataToSend.append("title", formData.jobTitle);
+      formDataToSend.append("company", formData.company);
+      formDataToSend.append("location", formData.location);
+      formDataToSend.append("experience_required", formData.experience);
+      formDataToSend.append("description", formData.description);
+      formDataToSend.append("required_skills", formData.requirements);
+
+      // Fichiers
+      files.forEach((file) => {
+        formDataToSend.append("file", file);
+      });
+
+      // Appel à notre API
+      const response = await fetch("/api/analysis", {
+        method: "POST",
+        body: formDataToSend,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Erreur lors de l'analyse");
+      }
+
+      const data = await response.json();
+      console.log('Analyse terminée avec succès:', data);
+      
+      // Redirection vers la page des résultats d'analyse
+      if (data && data.persisted && data.persisted.analysis_id) {
+        router.push(`/dashboard/analysis-results/${data.persisted.analysis_id}`);
+      } else {
+        router.push('/dashboard/analysis-results');
+      }
+      
+    } catch (error: any) {
+      console.error('Erreur lors de l\'analyse:', error);
+      alert(`Erreur: ${error?.message || 'Une erreur est survenue lors de l\'analyse'}`);
+    } finally {
       setIsAnalyzing(false);
-      // TODO: Redirect to results page
-    }, 3000);
+    }
   };
 
   return (
