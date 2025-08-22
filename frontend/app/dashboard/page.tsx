@@ -334,7 +334,6 @@ export default function DashboardPage() {
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analyses IA</h1>
                 <div className="flex space-x-3">
                   <Link href="/dashboard/new-analysis"><Button>Nouvelle analyse</Button></Link>
-                  <Link href="/dashboard/new-application"><Button variant="outline">Ajouter candidature</Button></Link>
                 </div>
               </div>
               
