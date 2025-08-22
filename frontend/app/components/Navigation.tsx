@@ -63,15 +63,9 @@ export default function Navigation() {
                 <>
                   <Link
                     href="/login"
-                    className="text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                    className="bg-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                   >
                     Connexion
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
-                  >
-                    Inscription
                   </Link>
                 </>
               )}

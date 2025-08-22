@@ -22,4 +22,5 @@ urlpatterns = [
     path('api/', include('cv_app.routes.user_routes')),
     path('api/', include('cv_app.routes.extract_routes')),
     path('api/', include('cv_app.routes.analysis_routes')),
+    path('api/', include('cv_app.routes.candidate_routes')),
 ]
